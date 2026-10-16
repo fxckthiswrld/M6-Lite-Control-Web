@@ -812,6 +812,7 @@ calibrationNav.onclick=()=>{
   calibrationPanel.scrollIntoView({behavior:'smooth'});
   restoreCalibrationState();
 };
-setBusy(false);Promise.all([restoreCalibrationState(),loadProfile()]).catch(error=>{$("lighting-mode-status").textContent=error.message;});
+setBusy(false);
+restoreCalibrationState().catch(error=>{$("lighting-mode-status").textContent=error.message;});
 
 
