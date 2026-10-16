@@ -140,3 +140,18 @@ test('WebHID reconnect skips a stale descriptor and opens the replacement interf
     Object.defineProperty(globalThis, 'navigator', { configurable: true, value: originalNavigator });
   }
 });
+
+test('automatic startup connection does not open a permission prompt for an unpaired device', async () => {
+  const originalNavigator = globalThis.navigator;
+  let promptCalled = false;
+  Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { hid: {
+    getDevices: async()=>[],
+    requestDevice: async()=>{promptCalled=true;return[];}
+  } } });
+  try {
+    await assert.rejects(() => new BrowserDevice().connect({ request: false }), /No paired M6 Lite\+ keyboard/);
+    assert.equal(promptCalled, false);
+  } finally {
+    Object.defineProperty(globalThis, 'navigator', { configurable: true, value: originalNavigator });
+  }
+});

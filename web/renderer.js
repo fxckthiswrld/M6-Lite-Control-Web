@@ -5,7 +5,7 @@ function speedToPercent(value,min,max){if(!Number.isFinite(value)||!Number.isFin
 function percentToSpeed(percent,min,max){if(!Number.isFinite(percent)||!Number.isFinite(min)||!Number.isFinite(max)||max<=min)return min;return Math.round(min+(percent/100)*(max-min));}
 const travelFields = ['head','bottom','trigger','release','fixedDown','fixedUp'];
 let layer = 0, selectedId = '2:1', profile = null, busy = false;
-let deviceWasConnected = false, connectionRecoveryNeeded = false, recoveryTimer = null, recoveryInFlight = false;
+let deviceWasConnected = false, connectionRecoveryNeeded = false, recoveryTimer = null, recoveryInFlight = false, startupConnectInFlight = false;
 let programming=null;
 let selectedIds=new Set(['2:1']),multipleSelection=false;
 const hePanel=document.querySelector('.panel');
@@ -631,6 +631,20 @@ async function recoverConnection(){
     scheduleConnectionRecovery(1500);
   }finally{recoveryInFlight=false;}
 }
+async function autoConnectAtStartup(){
+  if(startupConnectInFlight||deviceWasConnected||busy)return;
+  startupConnectInFlight=true;
+  const status=document.querySelector('.online');
+  if(status)status.textContent='Looking for a paired keyboard...';
+  try{
+    const reply=await window.keyboard.autoConnect();
+    if(!reply.ok){if(status)status.textContent='Not connected - click Connect keyboard to pair the device.';return;}
+    if(status)status.textContent='Connected - browser HID. Reading device...';
+    await loadProfile(layer);
+  }catch(error){
+    if(status)status.textContent='Not connected - click Connect keyboard to pair the device.';
+  }finally{startupConnectInFlight=false;}
+}
 window.m6UI={refresh:()=>loadProfile(layer)};
 window.addEventListener('m6-device-status',event=>{
   const phase=event.detail?.phase;
@@ -814,5 +828,6 @@ calibrationNav.onclick=()=>{
 };
 setBusy(false);
 restoreCalibrationState().catch(error=>{$("lighting-mode-status").textContent=error.message;});
+setTimeout(autoConnectAtStartup,0);
 
 
