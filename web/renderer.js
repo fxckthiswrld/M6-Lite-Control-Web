@@ -5,7 +5,7 @@ function speedToPercent(value,min,max){if(!Number.isFinite(value)||!Number.isFin
 function percentToSpeed(percent,min,max){if(!Number.isFinite(percent)||!Number.isFinite(min)||!Number.isFinite(max)||max<=min)return min;return Math.round(min+(percent/100)*(max-min));}
 const travelFields = ['head','bottom','trigger','release','fixedDown','fixedUp'];
 let layer = 0, selectedId = '2:1', profile = null, busy = false;
-let deviceWasConnected = false, connectionRecoveryNeeded = false, recoveryTimer = null, recoveryInFlight = false, startupConnectInFlight = false;
+let deviceWasConnected = false, connectionRecoveryNeeded = false, recoveryTimer = null, recoveryInFlight = false, startupConnectInFlight = false, expectedDeviceRestart = false;
 let programming=null;
 let selectedIds=new Set(['2:1']),multipleSelection=false;
 const hePanel=document.querySelector('.panel');
@@ -651,7 +651,7 @@ window.addEventListener('m6-device-status',event=>{
   if(phase==='disconnected'&&deviceWasConnected){
     connectionRecoveryNeeded=true;
     const status=document.querySelector('.online');
-    if(status)status.textContent='Keyboard disconnected. Waiting for it to return...';
+    if(status)status.textContent=expectedDeviceRestart?'Keyboard is restarting. Reconnecting...':'Keyboard disconnected. Waiting for it to return...';
     scheduleConnectionRecovery(700);
   }else if(phase==='connected'&&deviceWasConnected){
     connectionRecoveryNeeded=false;
@@ -780,7 +780,7 @@ for(const button of settingsPanel.querySelectorAll('[data-performance-mode]'))bu
 };
 async function deviceSettingsAction(apply=false){
  if(busy||(apply==='mode'?!deviceSettings?.canEditPerformance:apply&&!deviceSettings?.canEditFps))return;
- const enabled=$('device-fps').checked,mode=performanceDraft;setBusy(true);$('device-settings-status').textContent=apply?'Applying and waiting for keyboard reconnection...':'Reading device settings...';
+ const enabled=$('device-fps').checked,mode=performanceDraft;expectedDeviceRestart=apply==='mode';setBusy(true);$('device-settings-status').textContent=apply?'Applying and waiting for keyboard reconnection...':'Reading device settings...';
  let refreshAfterReconnect=false;
  try{
   const reply=await (apply==='mode'?window.keyboard.setPerformanceMode(mode):apply?window.keyboard.setFpsEnhance(enabled):window.keyboard.readDeviceSettings());
@@ -789,6 +789,7 @@ async function deviceSettingsAction(apply=false){
  }catch(error){deviceSettings=null;showPerformanceMode();$('device-settings-status').textContent=error.message;}
  finally{setBusy(false);}
  if(refreshAfterReconnect){await loadProfile(layer);$('device-settings-status').textContent=profile?'Performance mode applied and keyboard reconnected.':'Keyboard reconnected, but profile refresh failed. Press Read keyboard.';}
+ expectedDeviceRestart=false;
 }
 $('device-mode-apply').onclick=()=>deviceSettingsAction('mode');
 $('device-settings-read').onclick=()=>deviceSettingsAction();$('device-fps').onchange=()=>deviceSettingsAction(true);
