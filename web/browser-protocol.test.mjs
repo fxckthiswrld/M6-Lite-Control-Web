@@ -5,6 +5,7 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const { parseCalibration } = require('../src/calibration.cjs');
 const { validateProfile } = require('../src/he-profile-file.cjs');
+const { prepareQuickPreset } = require('../src/preset-off.cjs');
 const layout = require('./keyboard-layout.json');
 
 test('browser calibration parser preserves 70 device records and status', () => {
@@ -25,4 +26,34 @@ test('HE import validation accepts the current 64-key layout and rejects omissio
   };
   assert.equal(validateProfile(document).length, 64);
   assert.throws(() => validateProfile({ ...document, keys: document.keys.slice(1) }), /all 64/);
+});
+
+function programmingFixture() {
+  const raw = Buffer.alloc(4776);
+  for (let index = 0; index < 70; index++) {
+    const offset = 8 + index * 68;
+    const row = Math.floor(index / 14), col = index % 14;
+    raw[offset + 9] = row + 1;
+    raw[offset + 10] = col;
+    raw[offset + 64] = row + 1;
+    raw[offset + 65] = col;
+  }
+  return raw;
+}
+
+test('quick DKS preset emits four individual writes including W', () => {
+  const plan = prepareQuickPreset(programmingFixture(), 0, 'dks');
+  assert.equal(plan.commands.length, 4);
+  assert.deepEqual([...plan.commands[0].subarray(6, 12)], [1, 2, 4, 0, 3, 2]);
+  assert.equal(plan.expected[8 + 16 * 68], 4);
+  assert.equal(plan.expected[8 + 29 * 68], 4);
+});
+
+test('quick Snap preset emits pair writes for A and D', () => {
+  const plan = prepareQuickPreset(programmingFixture(), 0, 'snap');
+  assert.equal(plan.commands.length, 2);
+  assert.deepEqual([...plan.commands[0].subarray(6, 12)], [2, 1, 5, 0, 3, 3]);
+  assert.deepEqual([...plan.commands[1].subarray(6, 12)], [2, 3, 5, 0, 3, 1]);
+  assert.equal(plan.expected[8 + 29 * 68], 5);
+  assert.equal(plan.expected[8 + 31 * 68], 5);
 });
