@@ -6,6 +6,7 @@ const require = createRequire(import.meta.url);
 const { parseCalibration } = require('../src/calibration.cjs');
 const { validateProfile } = require('../src/he-profile-file.cjs');
 const { prepareQuickPreset } = require('../src/preset-off.cjs');
+const { encodeStandardRemap, encodeModify } = require('../src/key-programming.cjs');
 const layout = require('./keyboard-layout.json');
 
 test('browser calibration parser preserves 70 device records and status', () => {
@@ -56,4 +57,11 @@ test('quick Snap preset emits pair writes for A and D', () => {
   assert.deepEqual([...plan.commands[1].subarray(6, 12)], [2, 3, 5, 0, 3, 1]);
   assert.equal(plan.expected[8 + 29 * 68], 5);
   assert.equal(plan.expected[8 + 31 * 68], 5);
+});
+
+test('keyboard programming writes use one-based target rows', () => {
+  const remap = encodeStandardRemap({ row: 2, col: 1, locked: 0 }, 0, 0, { row: 2, col: 3 });
+  assert.deepEqual([...remap.subarray(9, 12)], [0, 3, 3]);
+  const modify = encodeModify({ row: 2, col: 1, locked: 0 }, 0, 0, { type: 0, row: 2, col: 3 });
+  assert.deepEqual([...modify.subarray(9, 12)], [0, 3, 3]);
 });
