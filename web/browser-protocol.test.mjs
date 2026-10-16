@@ -155,3 +155,22 @@ test('automatic startup connection does not open a permission prompt for an unpa
     Object.defineProperty(globalThis, 'navigator', { configurable: true, value: originalNavigator });
   }
 });
+
+test('WebHID reconnect opens a device delivered by the connect event', async () => {
+  const reportCollections = [{ usagePage: 0x000c, outputReports: [{ reportId: 4, reportSize: 160 }] }];
+  const replacement = {
+    vendorId: 0x2233, productId: 0x006b, productName: 'event-device', opened: false, collections: reportCollections,
+    async open(){this.opened=true;}
+  };
+  const hid = new EventTarget();
+  hid.getDevices = async()=>[];
+  const originalNavigator = globalThis.navigator;
+  Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { hid } });
+  try {
+    setTimeout(()=>{const event=new Event('connect');Object.defineProperty(event,'device',{value:replacement});hid.dispatchEvent(event);},5);
+    const details = await new BrowserDevice().reconnect({ timeout: 500, interval: 1 });
+    assert.equal(details.productName, 'event-device');
+  } finally {
+    Object.defineProperty(globalThis, 'navigator', { configurable: true, value: originalNavigator });
+  }
+});
