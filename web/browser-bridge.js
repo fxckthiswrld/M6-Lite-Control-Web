@@ -1,17 +1,120 @@
 'use strict';
-// Browser replacement for Electron preload. The current renderer stays intact;
-// only the transport boundary changes from IPC to WebHID.
-const hidReady=import('./hid.js').then(({M6Hid})=>new M6Hid());
-let backend=null,activeProfile=null,layout=[];
-const layoutReady=fetch('keyboard-layout.json').then(r=>r.json()).then(value=>{layout=value;return value;});
-const unsupported=name=>({ok:false,error:`${name} is not available in the browser yet.`});
-const result=value=>({ok:true,result:value});
-function demo(layer){return {layer,layout,keys:Array.from({length:70},(_,n)=>({row:n/14|0,col:n%14,rtOn:false,head:.2,bottom:.2,trigger:1,release:1,fixedDown:1,fixedUp:1}))};}
-async function getBackend(){return backend??=await hidReady;}
-async function readProfile(layer=0){await layoutReady;const device=await getBackend();try{activeProfile=device.connected?await device.profile(layer):demo(layer);}catch(error){activeProfile=demo(layer);activeProfile.error=error.message;}activeProfile.layout=layout;return result(activeProfile);}
-function programming(layer){return result({layer,keys:activeProfile?.keys?.map(key=>({...key,mode:0,locked:0,assignment:{mode:0}}))||[]});}
-function lightingBack(){return {mode:2,name:'Normal',enabled:true,canSwitch:true,supportedModes:[2,3,4,5,6,7],canEditEnabled:true,canEditColor:true,supportsCustomRgb:true,customRgb:false,color:'#8C7DFF',canEditSpeed:false,canEditDirection:false};}
-function lightingUnder(){return {mode:7,name:'Normal',enabled:true,sync:1,brightness:180,canSwitch:true,canEditEnabled:true,canEditSync:true,canEditColor:true,supportsCustomRgb:false,color:'#8C7DFF',canEditSpeed:false};}
-const keyboard={mediaActions:[],connect:async()=>{const device=await getBackend();await device.connect();return result(device.info);},readProfile,readProgramming:async layer=>programming(layer),saveSelected:async request=>{const key=activeProfile.keys.find(k=>`${k.row}:${k.col}`===request.id);if(!key)return unsupported('Selected key');Object.assign(key,request);try{const device=await getBackend();if(device.connected)await device.write(key,request.layer)}catch(error){return {ok:false,error:error.message}}return result({key,verified:true})},applyAll:async request=>{for(const key of activeProfile.keys)Object.assign(key,request,{row:key.row,col:key.col});return result(activeProfile)},saveToDeviceMemory:async()=>{try{const device=await getBackend();if(device.connected)await device.save();return result({acknowledged:true})}catch(error){return {ok:false,error:error.message}}},readBackLight:async()=>result(lightingBack()),readUnderLight:async()=>result(lightingUnder()),readBrightness:async()=>result({brightness:180}),setBrightness:async()=>result({brightness:180}),setBackLightMode:async mode=>result({...lightingBack(),mode,name:{2:'Normal',3:'Breath',4:'Gradient',5:'Stream',6:'Star',7:'Roll'}[mode]||'Normal'}),setBackLightEnabled:async()=>result(lightingBack()),setBackLightColor:async()=>result(lightingBack()),setBackLightSpeed:async()=>result(lightingBack()),setBackLightDirection:async()=>result(lightingBack()),setUnderLightMode:async()=>result(lightingUnder()),setUnderLightEnabled:async()=>result(lightingUnder()),setUnderLightSync:async()=>result(lightingUnder()),setUnderLightBrightness:async()=>result(lightingUnder()),setUnderLightColor:async()=>result(lightingUnder()),readSingleLight:async()=>result({enabled:false,canEnable:true,keys:layout.map(key=>({id:key.id,label:key.label,enabled:false,color:'#8C7DFF',canEdit:true}))}),setSingleLight:async()=>result({}),calibrationState:async()=>result({active:false,phase:'idle'}),readCalibration:async()=>unsupported('Calibration'),getFeatures:async()=>fetch('features.json').then(r=>r.json()).then(result),state:async()=>result({}),getState:async()=>result({}),hardwareStatus:async()=>result({connected:!!backend?.connected}),hardwareReadStatus:async()=>result({connected:!!backend?.connected})};
-window.keyboard=new Proxy(keyboard,{get(target,name){return name in target?target[name]:async()=>unsupported(String(name));}});
-layoutReady.then(()=>{const connect=document.createElement('button');connect.id='browser-connect';connect.textContent='Connect keyboard';connect.className='secondary';document.querySelector('.header-actions')?.prepend(connect);connect.onclick=async()=>{connect.disabled=true;const reply=await window.keyboard.connect();connect.disabled=false;const status=document.querySelector('.online');if(reply.ok){if(status)status.textContent='Connected - browser HID';window.m6UI?.refresh?.()}else if(status)status.textContent=reply.error;}});
+// Browser transport: all device calls stay in the page and use WebHID.
+const adapterReady=import('./browser-backend.js').then(m=>new (m.BrowserAdapter||m.default.BrowserAdapter)());
+const unsupported=name=>({ok:false,error:`${name} is not available in this browser build yet.`});
+async function invoke(name,args=[]){try{const adapter=await adapterReady;if(typeof adapter[name]!=='function')return unsupported(name);return {ok:true,result:await adapter[name](...args)};}catch(error){return {ok:false,error:error.message};}}
+const methods=['connect','readProfile','readProgramming','saveSelected','applyAll','saveToDeviceMemory','setPair','setRemap','setHotKey','setMedia','setModify','setLayerAssignment','resetProgrammingKey','setKeyEnabled','setDks','setDksAll','setDksWasd','presetOff','quickPreset','readBackLight','setBackLightMode','setBackLightEnabled','setBackLightColor','setBackLightSpeed','setBackLightDirection','readBrightness','setBrightness','readUnderLight','setUnderLightMode','setUnderLightEnabled','setUnderLightSync','setUnderLightBrightness','setUnderLightColor','setUnderLightSpeed','readSingleLight','setSingleLight','calibrationState','readCalibration','calibrationCommand','calibrateSelected','readDeviceSettings','setFpsEnhance','setPerformanceMode','exportHe','importHe','returnToStandard','getState','hardwareStatus','hardwareReadStatus'];
+const keyboard={mediaActions:[
+  {
+    "id": "VOL_MUTE",
+    "label": "Mute",
+    "index": 1,
+    "data": 1
+  },
+  {
+    "id": "SAVE",
+    "label": "Save",
+    "index": 255,
+    "data": 5
+  },
+  {
+    "id": "CALC",
+    "label": "Calculator",
+    "index": 1,
+    "data": 16
+  },
+  {
+    "id": "WWW_FORWARD",
+    "label": "Browser forward",
+    "index": 2,
+    "data": 8
+  },
+  {
+    "id": "REDO",
+    "label": "Redo",
+    "index": 255,
+    "data": 6
+  },
+  {
+    "id": "VOL_UP",
+    "label": "Volume up",
+    "index": 1,
+    "data": 2
+  },
+  {
+    "id": "COMPUTER",
+    "label": "This PC",
+    "index": 1,
+    "data": 8
+  },
+  {
+    "id": "NULL",
+    "label": "No action",
+    "index": 1,
+    "data": 0
+  },
+  {
+    "id": "PASTE",
+    "label": "Paste",
+    "index": 255,
+    "data": 2
+  },
+  {
+    "id": "PLAY_PREVIOUS",
+    "label": "Previous track",
+    "index": 1,
+    "data": 64
+  },
+  {
+    "id": "WWW_BACK",
+    "label": "Browser back",
+    "index": 2,
+    "data": 4
+  },
+  {
+    "id": "VOL_DOWN",
+    "label": "Volume down",
+    "index": 1,
+    "data": 4
+  },
+  {
+    "id": "COPY",
+    "label": "Copy",
+    "index": 255,
+    "data": 1
+  },
+  {
+    "id": "PLAY",
+    "label": "Play / pause",
+    "index": 1,
+    "data": 32
+  },
+  {
+    "id": "MAIN_PAGE",
+    "label": "Browser home",
+    "index": 2,
+    "data": 2
+  },
+  {
+    "id": "CANCEL",
+    "label": "Cancel (vendor action)",
+    "index": 255,
+    "data": 3
+  },
+  {
+    "id": "PLAY_NEXT",
+    "label": "Next track",
+    "index": 1,
+    "data": 128
+  },
+  {
+    "id": "CUT",
+    "label": "Cut",
+    "index": 255,
+    "data": 4
+  }
+]
+,getFeatures:async()=>fetch('features.json').then(r=>r.json()).then(result=>({ok:true,result})),readProfile:layer=>invoke('readProfile',[layer]),readProgramming:layer=>invoke('readProgramming',[layer])};
+for(const name of methods)if(!(name in keyboard))keyboard[name]=(...args)=>invoke(name,args);
+window.keyboard=keyboard;
+fetch('keyboard-layout.json').then(r=>r.json()).then(()=>{const button=document.createElement('button');button.id='browser-connect';button.className='secondary';button.textContent='Connect keyboard';document.querySelector('.header-actions')?.prepend(button);button.onclick=async()=>{button.disabled=true;const reply=await window.keyboard.connect();button.disabled=false;const status=document.querySelector('.online');if(reply.ok){if(status)status.textContent='Connected - browser HID';window.m6UI?.refresh?.();}else if(status)status.textContent=reply.error;};});

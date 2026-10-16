@@ -6,7 +6,14 @@
   "scripts": {
     "start": "node web/server.mjs",
     "dev": "node web/server.mjs",
+    "build:browser": "esbuild src/browser-adapter.cjs --bundle --format=esm --platform=browser --outfile=web/browser-backend.js --minify",
     "test": "node --test web/hid.test.mjs"
   },
-  "engines": { "node": ">=20" }
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "buffer": "^6.0.3",
+    "esbuild": "^0.28.2"
+  }
 }
