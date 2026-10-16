@@ -1,4 +1,5 @@
 'use strict';
+const { Buffer } = require('buffer');
 // Internal send-queue prefix recovered from JIT SendMagCfg; NOT a HID report.
 // Values are raw device units. Millimetre conversion and USB framing are unknown.
 function integer(value, max, name) {

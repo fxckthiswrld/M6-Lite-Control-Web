@@ -1,4 +1,5 @@
 'use strict';
+const { Buffer } = require('buffer');
 const {parseProgrammingProfile,encodePair,encodeFullModRestore,encodeDksRestore,buildDksRecord}=require('./key-programming.cjs');
 const indices=[16,29,30,31],partners=new Map([[16,30],[30,16],[29,31],[31,29]]);
 function preparePresetOff(raw,layer){

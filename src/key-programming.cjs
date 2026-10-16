@@ -1,4 +1,5 @@
 'use strict';
+const { Buffer } = require('buffer');
 // Layout verified with Marshal.OffsetOf in the original MMPanel process.
 const ROWS=5,COLS=14,RECORD_SIZE=68,PROFILE_SIZE=8+ROWS*COLS*RECORD_SIZE;
 const {PROG_CMD}=require('./m6up-commands.cjs');

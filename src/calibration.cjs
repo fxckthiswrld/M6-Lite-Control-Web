@@ -1,4 +1,5 @@
 'use strict';
+const { Buffer } = require('buffer');
 function parseCalibration(raw){
   if(!Buffer.isBuffer(raw)||raw.length!==420)throw Error('Expected 420 calibration bytes');
   return Array.from({length:70},(_,index)=>{const o=index*6,min=raw.readUInt16LE(o+2),max=raw.readUInt16LE(o+4);return {row:Math.floor(index/14),col:index%14,model:raw[o],reserved:raw[o+1],min,max,rangeStatus:min===2000&&max===2200?'not-calibrated':min===0&&max===0?'empty':max>min?'ok':'error'};});

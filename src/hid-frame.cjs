@@ -1,4 +1,5 @@
 'use strict';
+const { Buffer } = require('buffer');
 // USBLib.UsbDevice.ArKtyv6d1 and m6-live-state4.txt, VID2233/PID006B/MI02.
 // Output only. Input reports use a different transformation.
 const OUTPUT_MASK = Buffer.from('8e96ce6af272994858612758e89a7f0195eeed2f', 'hex');

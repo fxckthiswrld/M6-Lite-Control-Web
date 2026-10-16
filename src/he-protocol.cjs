@@ -1,4 +1,5 @@
 'use strict';
+const { Buffer } = require('buffer');
 const { encodeMagCommandRaw } = require('./mag-command.cjs');
 const ROWS = 5, COLS = 14, KEY_SIZE = 14;
 const fields = ['head', 'trigger', 'release', 'fixedDown', 'fixedUp', 'bottom'];
