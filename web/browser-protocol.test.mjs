@@ -7,6 +7,7 @@ const { parseCalibration } = require('../src/calibration.cjs');
 const { validateProfile } = require('../src/he-profile-file.cjs');
 const { prepareQuickPreset } = require('../src/preset-off.cjs');
 const { encodeStandardRemap, encodeModify } = require('../src/key-programming.cjs');
+const { BrowserAdapter } = require('../src/browser-adapter.cjs');
 const layout = require('./keyboard-layout.json');
 
 test('browser calibration parser preserves 70 device records and status', () => {
@@ -64,4 +65,34 @@ test('keyboard programming writes use one-based target rows', () => {
   assert.deepEqual([...remap.subarray(9, 12)], [0, 3, 3]);
   const modify = encodeModify({ row: 2, col: 1, locked: 0 }, 0, 0, { type: 0, row: 2, col: 3 });
   assert.deepEqual([...modify.subarray(9, 12)], [0, 3, 3]);
+});
+
+test('HE writes encode the UI boolean RT flag as a numeric protocol byte', async () => {
+  const raw = Buffer.alloc(984);
+  const adapter = new BrowserAdapter();
+  let sent;
+  adapter.device = {
+    readInit: async () => Buffer.from(raw),
+    send: async payload => {
+      sent = Buffer.from(payload);
+      const offset = (2 * 14 + 1) * 14;
+      raw[offset] = sent[6];
+      for (let i = 0; i < 6; i++) raw.writeUInt16LE(sent.readUInt16LE(7 + i * 2), offset + 2 + i * 2);
+    }
+  };
+  const result = await adapter.saveSelected({
+    layer: 0,
+    id: '2:1',
+    rtOn: true,
+    head: 0.2,
+    bottom: 0.22,
+    trigger: 0.24,
+    release: 0.26,
+    fixedDown: 1,
+    fixedUp: 1
+  });
+  assert.equal(sent[6], 1);
+  assert.equal(sent.readUInt16LE(7), 100);
+  assert.equal(result.key.rtOn, true);
+  assert.equal(result.key.trigger, 0.24);
 });
