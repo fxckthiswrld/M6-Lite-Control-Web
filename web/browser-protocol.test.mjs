@@ -69,19 +69,25 @@ test('keyboard programming writes use one-based target rows', () => {
 
 test('HE writes encode the UI boolean RT flag as a numeric protocol byte', async () => {
   const raw = Buffer.alloc(984);
+  const config = Buffer.alloc(14);
   const adapter = new BrowserAdapter();
   let sent;
+  const heWrites = [];
   adapter.device = {
-    readInit: async () => Buffer.from(raw),
+    readInit: async kind => kind === 1 ? Buffer.from(config) : Buffer.from(raw),
     send: async payload => {
       sent = Buffer.from(payload);
-      const offset = (2 * 14 + 1) * 14;
-      raw[offset] = sent[6];
-      for (let i = 0; i < 6; i++) raw.writeUInt16LE(sent.readUInt16LE(7 + i * 2), offset + 2 + i * 2);
+      if (sent[1] === 2) sent.subarray(2, 16).copy(config);
+      else {
+        heWrites.push(sent);
+        const offset = (2 * 14 + 1) * 14;
+        raw[offset] = sent[6];
+        for (let i = 0; i < 6; i++) raw.writeUInt16LE(sent.readUInt16LE(7 + i * 2), offset + 2 + i * 2);
+      }
     }
   };
   const result = await adapter.saveSelected({
-    layer: 0,
+    layer: 1,
     id: '2:1',
     rtOn: true,
     head: 0.2,
@@ -91,8 +97,10 @@ test('HE writes encode the UI boolean RT flag as a numeric protocol byte', async
     fixedDown: 1,
     fixedUp: 1
   });
-  assert.equal(sent[6], 1);
-  assert.equal(sent.readUInt16LE(7), 100);
+  assert.equal(heWrites.length, 1);
+  assert.equal(heWrites[0][6], 1);
+  assert.equal(heWrites[0].readUInt16LE(7), 100);
   assert.equal(result.key.rtOn, true);
   assert.equal(result.key.trigger, 0.24);
+  assert.equal(config[11], 0);
 });
