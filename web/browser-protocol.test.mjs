@@ -6,7 +6,7 @@ const require = createRequire(import.meta.url);
 const { parseCalibration } = require('../src/calibration.cjs');
 const { validateProfile } = require('../src/he-profile-file.cjs');
 const { prepareQuickPreset } = require('../src/preset-off.cjs');
-const { encodeStandardRemap, encodeModify } = require('../src/key-programming.cjs');
+const { encodeStandardRemap, encodeModify, parseProgrammingProfile } = require('../src/key-programming.cjs');
 const { BrowserAdapter, BrowserDevice } = require('../src/browser-adapter.cjs');
 const layout = require('./keyboard-layout.json');
 
@@ -58,6 +58,15 @@ test('quick Snap preset emits pair writes for A and D', () => {
   assert.deepEqual([...plan.commands[1].subarray(6, 12)], [2, 3, 5, 0, 3, 1]);
   assert.equal(plan.expected[8 + 29 * 68], 5);
   assert.equal(plan.expected[8 + 31 * 68], 5);
+});
+
+test('quick preset readback verifies each requested assignment', () => {
+  const adapter = new BrowserAdapter();
+  const dks = prepareQuickPreset(programmingFixture(), 0, 'dks');
+  const snap = prepareQuickPreset(programmingFixture(), 0, 'snap');
+  adapter.verifyQuickPreset(parseProgrammingProfile(dks.expected), 0, 'dks');
+  adapter.verifyQuickPreset(parseProgrammingProfile(snap.expected), 0, 'snap');
+  assert.throws(() => adapter.verifyQuickPreset(parseProgrammingProfile(programmingFixture()), 0, 'dks'), /DKS readback mismatch/);
 });
 
 test('keyboard programming writes use one-based target rows', () => {
