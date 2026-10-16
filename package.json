@@ -7,7 +7,7 @@
     "start": "node web/server.mjs",
     "dev": "node web/server.mjs",
     "build:browser": "esbuild src/browser-adapter.cjs --bundle --format=esm --platform=browser --outfile=web/browser-backend.js --minify",
-    "test": "node --test web/hid.test.mjs"
+    "test": "node --test web/*.test.mjs"
   },
   "engines": {
     "node": ">=20"

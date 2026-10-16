@@ -1,0 +1,28 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { createRequire } from 'node:module';
+
+const require = createRequire(import.meta.url);
+const { parseCalibration } = require('../src/calibration.cjs');
+const { validateProfile } = require('../src/he-profile-file.cjs');
+const layout = require('./keyboard-layout.json');
+
+test('browser calibration parser preserves 70 device records and status', () => {
+  const raw = Buffer.alloc(420);
+  raw.writeUInt16LE(2000, 2);
+  raw.writeUInt16LE(2200, 4);
+  const records = parseCalibration(raw);
+  assert.equal(records.length, 70);
+  assert.equal(records[0].rangeStatus, 'not-calibrated');
+});
+
+test('HE import validation accepts the current 64-key layout and rejects omissions', () => {
+  const fields = ['head', 'trigger', 'release', 'fixedDown', 'fixedUp', 'bottom'];
+  const document = {
+    format: 'm6-lite-plus-he', version: 1, model: 'M6 Lite+',
+    vendorId: 0x2233, productId: 0x006b, units: 'mm', sourceProfile: 'M1',
+    keys: layout.map(key => ({ id: key.id, rtOn: false, ...Object.fromEntries(fields.map(field => [field, 1])) }))
+  };
+  assert.equal(validateProfile(document).length, 64);
+  assert.throws(() => validateProfile({ ...document, keys: document.keys.slice(1) }), /all 64/);
+});
