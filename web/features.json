@@ -1,0 +1,199 @@
+{
+  "venomDemoTabs": [
+    "Quick Setup",
+    "Remap",
+    "Actuation Point",
+    "Advanced Keys",
+    "Focus Keys",
+    "Lighting Effect"
+  ],
+  "m6upAssemblyAudit": {
+    "magnetic": [
+      "MagCalViewModel",
+      "MagCfgViewModel",
+      "MagFixTrigViewModel",
+      "MagRapidTrigViewModel",
+      "Calibration",
+      "Rapid Trigger",
+      "fixed trigger"
+    ],
+    "programming": [
+      "FullKeyProgViewModel",
+      "ComboKeyProgViewModel",
+      "ProgModeViewModel",
+      "DKSModeViewModel",
+      "SnapModeViewModel",
+      "CancelModeViewModel",
+      "FnModeViewModel",
+      "ModModeViewModel",
+      "MediaModeViewModel"
+    ],
+    "lighting": [
+      "Back Light: Normal",
+      "Back Light: Stream",
+      "Back Light: Gradient",
+      "Back Light: Star",
+      "Back Light: Roll",
+      "Back Light: Breath",
+      "Under Light: Stream",
+      "Under Light: Breath",
+      "Under Light: Star",
+      "Under Light: Gradient",
+      "Under Light: Normal",
+      "Single Light: selected key or group color"
+    ],
+    "device": [
+      "SettingViewModel",
+      "NavigationViewModel",
+      "firmware/IAP",
+      "factory reset",
+      "battery",
+      "wireless sleep",
+      "touch bar",
+      "knob",
+      "monitor",
+      "GIF/picture storage",
+      "G24 association"
+    ],
+    "status": "Historical assembly inventory; not verified M6 Lite+ capabilities"
+  },
+  "pages": [
+    {
+      "id": "key-range",
+      "title": "Key Range",
+      "features": [
+        "Rapid Trigger",
+        "Head",
+        "Bottom",
+        "Trigger",
+        "Release",
+        "selected-key Save",
+        "Apply to all",
+        "Restart"
+      ]
+    },
+    {
+      "id": "calibration",
+      "title": "Calibration",
+      "features": [
+        "Hall sensor calibration",
+        "Hardware reset via FN+O",
+        "Calibrate all keys",
+        "Calibration status",
+        "min/max sensor values"
+      ]
+    },
+    {
+      "id": "programming",
+      "title": "Programming",
+      "features": [
+        "Key remap",
+        "Profiles",
+        "Layer selection",
+        "Single key set/reset",
+        "All keys set/reset",
+        "DKS",
+        "Snap Tap",
+        "SOCD / AD cancellation",
+        "Modify, Media, FN/layer, DKS, Snap and Cancel/SOCD"
+      ]
+    },
+    {
+      "id": "back-light",
+      "title": "Back Light",
+      "features": [
+        "Brightness",
+        "Normal",
+        "Stream",
+        "Gradient",
+        "Star",
+        "Roll",
+        "Breath",
+        "Brightness",
+        "Backlight off"
+      ]
+    },
+    {
+      "id": "under-light",
+      "title": "Under Light",
+      "features": [
+        "Stream",
+        "Breath",
+        "Star",
+        "Gradient",
+        "Normal",
+        "Speed",
+        "Brightness"
+      ]
+    },
+    {
+      "id": "single-light",
+      "title": "Single Light",
+      "features": [
+        "Single-key color",
+        "Group color",
+        "Custom RGB",
+        "Brightness",
+        "Save selected key or group"
+      ]
+    },
+    {
+      "id": "settings",
+      "title": "Settings",
+      "features": [
+        "Performance mode",
+        "Balance mode",
+        "Speed mode",
+        "Key filter",
+        "Win lock",
+        "Fn/Alt swap",
+        "Sleep delay",
+        "Fast sleep",
+        "Auto magnetic layer",
+        "Firmware update",
+        "Factory reset",
+        "About"
+      ]
+    }
+  ],
+  "he": {
+    "units": "mm",
+    "fields": [
+      "rtOn",
+      "head",
+      "bottom",
+      "trigger",
+      "release",
+      "fixedDown",
+      "fixedUp"
+    ],
+    "profiles": [
+      "M1",
+      "M2"
+    ]
+  },
+  "commands": {
+    "singleKeySet": 1,
+    "singleKeyReset": 2,
+    "allKeySet": 3,
+    "allKeyReset": 4,
+    "applyAll": 7,
+    "dksOn": 9,
+    "snapTap": 11,
+    "magCal": 48,
+    "magCfg": 49,
+    "saveEnd": 254
+  },
+  "capabilityStatus": {
+    "hallEffect": "verified",
+    "snapTap": "verified",
+    "socd": "verified",
+    "dks": "keyboard-mouse-and-wasd-verified",
+    "calibration": "full-manual-sequence; selected-isolation-and-live-telemetry-in-development",
+    "persistentSave": "verified-power-cycle",
+    "demo": "not-planned",
+    "heJson": "verified",
+    "heImmediateApply": "explicit-apply-only",
+    "heGroupApply": "verified"
+  }
+}
