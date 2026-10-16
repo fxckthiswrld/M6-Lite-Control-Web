@@ -597,7 +597,7 @@ async function loadProfile(nextLayer=layer) {
     $('status').textContent=`M${layer+1} read from keyboard. Select a switch to edit.`;
   } catch(error) {
     profile=null;programming=null;
-    document.querySelector('.online').textContent='Device read unavailable';
+    document.querySelector('.online').textContent='Device read unavailable: '+error.message;
     $('status').textContent=error.message;
   } finally {setBusy(false);}
 }
