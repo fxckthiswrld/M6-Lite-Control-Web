@@ -5,6 +5,7 @@ function speedToPercent(value,min,max){if(!Number.isFinite(value)||!Number.isFin
 function percentToSpeed(percent,min,max){if(!Number.isFinite(percent)||!Number.isFinite(min)||!Number.isFinite(max)||max<=min)return min;return Math.round(min+(percent/100)*(max-min));}
 const travelFields = ['head','bottom','trigger','release','fixedDown','fixedUp'];
 let layer = 0, selectedId = '2:1', profile = null, busy = false;
+let deviceWasConnected = false, connectionRecoveryNeeded = false, recoveryTimer = null, recoveryInFlight = false;
 let programming=null;
 let selectedIds=new Set(['2:1']),multipleSelection=false;
 const hePanel=document.querySelector('.panel');
@@ -593,6 +594,7 @@ async function loadProfile(nextLayer=layer) {
   if(programmed.ok){programming=programmed.result;showPairState();showDksState();fillRemap();fillLayer();fillMedia();fillModify();}
     else $('pair-status').textContent=programmed.error;
     [...profileBar.children].forEach((b,i)=>b.classList.toggle('active',i===layer));
+    deviceWasConnected=true;
     document.querySelector('.online').textContent='Connected - device data loaded';
     $('status').textContent=`M${layer+1} read from keyboard. Select a switch to edit.`;
   } catch(error) {
@@ -601,6 +603,45 @@ async function loadProfile(nextLayer=layer) {
     $('status').textContent=error.message;
   } finally {setBusy(false);}
 }
+function scheduleConnectionRecovery(delay=450){
+  clearTimeout(recoveryTimer);
+  recoveryTimer=setTimeout(()=>recoverConnection(),delay);
+}
+async function recoverConnection(){
+  recoveryTimer=null;
+  if(recoveryInFlight||!deviceWasConnected)return;
+  if(busy){scheduleConnectionRecovery(500);return;}
+  recoveryInFlight=true;
+  const status=document.querySelector('.online');
+  if(status)status.textContent='Keyboard disconnected. Reconnecting...';
+  try{
+    if(connectionRecoveryNeeded){
+      const reply=await window.keyboard.reconnect({timeout:12000,interval:250});
+      if(!reply.ok)throw new Error(reply.error);
+      connectionRecoveryNeeded=false;
+    }
+    await loadProfile(layer);
+    if(profile){if(status)status.textContent='Keyboard reconnected - device data loaded';}
+    else {connectionRecoveryNeeded=true;scheduleConnectionRecovery(1500);}
+  }catch(error){
+    connectionRecoveryNeeded=true;
+    if(status)status.textContent='Keyboard reconnect failed: '+error.message;
+    scheduleConnectionRecovery(1500);
+  }finally{recoveryInFlight=false;}
+}
+window.m6UI={refresh:()=>loadProfile(layer)};
+window.addEventListener('m6-device-status',event=>{
+  const phase=event.detail?.phase;
+  if(phase==='disconnected'&&deviceWasConnected){
+    connectionRecoveryNeeded=true;
+    const status=document.querySelector('.online');
+    if(status)status.textContent='Keyboard disconnected. Waiting for it to return...';
+    scheduleConnectionRecovery(700);
+  }else if(phase==='connected'&&deviceWasConnected){
+    connectionRecoveryNeeded=false;
+    scheduleConnectionRecovery(350);
+  }
+});
 $('read').onclick=()=>loadProfile();
 $('save-memory').onclick=async()=>{if(busy)return;setBusy(true);$('status').textContent='Saving to device memory...';try{const reply=await window.keyboard.saveToDeviceMemory();if(!reply.ok)throw new Error(reply.error);$('status').textContent='Save command acknowledged. Power-cycle verification is still required.';}catch(e){$('status').textContent=e.message;}finally{setBusy(false);}};
 async function saveChanges(all=false) {

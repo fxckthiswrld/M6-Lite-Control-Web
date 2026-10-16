@@ -7,7 +7,7 @@ const { parseCalibration } = require('../src/calibration.cjs');
 const { validateProfile } = require('../src/he-profile-file.cjs');
 const { prepareQuickPreset } = require('../src/preset-off.cjs');
 const { encodeStandardRemap, encodeModify } = require('../src/key-programming.cjs');
-const { BrowserAdapter } = require('../src/browser-adapter.cjs');
+const { BrowserAdapter, BrowserDevice } = require('../src/browser-adapter.cjs');
 const layout = require('./keyboard-layout.json');
 
 test('browser calibration parser preserves 70 device records and status', () => {
@@ -103,4 +103,31 @@ test('HE writes encode the UI boolean RT flag as a numeric protocol byte', async
   assert.equal(result.key.rtOn, true);
   assert.equal(result.key.trigger, 0.24);
   assert.equal(config[11], 0);
+});
+
+test('WebHID reconnect skips a stale descriptor and opens the replacement interface', async () => {
+  const reportCollections = [{ usagePage: 0x000c, outputReports: [{ reportId: 4, reportSize: 160 }] }];
+  let oldClosed = false;
+  const stale = {
+    vendorId: 0x2233, productId: 0x006b, productName: 'stale', opened: true, collections: reportCollections,
+    async close(){oldClosed=true;this.opened=false;},
+    async open(){throw new Error('The device is no longer connected');}
+  };
+  const replacement = {
+    vendorId: 0x2233, productId: 0x006b, productName: 'replacement', opened: false, collections: reportCollections,
+    async open(){this.opened=true;}
+  };
+  const originalNavigator = globalThis.navigator;
+  Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { hid: { getDevices: async()=>[stale,replacement] } } });
+  try {
+    const device = new BrowserDevice();
+    device.handle=stale;
+    device.lastDevice=stale;
+    const details = await device.reconnect({ timeout: 500, interval: 1 });
+    assert.equal(oldClosed, true);
+    assert.equal(details.productName, 'replacement');
+    assert.equal(device.connected, true);
+  } finally {
+    Object.defineProperty(globalThis, 'navigator', { configurable: true, value: originalNavigator });
+  }
 });
