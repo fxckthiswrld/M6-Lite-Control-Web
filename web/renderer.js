@@ -637,10 +637,13 @@ async function autoConnectAtStartup(){
   const status=document.querySelector('.online');
   if(status)status.textContent='Looking for a paired keyboard...';
   try{
-    const reply=await window.keyboard.autoConnect();
-    if(!reply.ok){if(status)status.textContent='Not connected - click Connect keyboard to pair the device.';return;}
-    if(status)status.textContent='Connected - browser HID. Reading device...';
-    await loadProfile(layer);
+    for(let attempt=0;attempt<60&&!deviceWasConnected;attempt++){
+      const reply=await window.keyboard.autoConnect();
+      if(reply.ok){if(status)status.textContent='Connected - browser HID. Reading device...';await loadProfile(layer);if(profile)return;}
+      else if(/No paired M6 Lite\+ keyboard/.test(reply.error||''))break;
+      if(attempt<59)await new Promise(resolve=>setTimeout(resolve,500));
+    }
+    if(status)status.textContent='Not connected - click Connect keyboard to pair the device.';
   }catch(error){
     if(status)status.textContent='Not connected - click Connect keyboard to pair the device.';
   }finally{startupConnectInFlight=false;}
@@ -781,14 +784,14 @@ for(const button of settingsPanel.querySelectorAll('[data-performance-mode]'))bu
 async function deviceSettingsAction(apply=false){
  if(busy||(apply==='mode'?!deviceSettings?.canEditPerformance:apply&&!deviceSettings?.canEditFps))return;
  const enabled=$('device-fps').checked,mode=performanceDraft;expectedDeviceRestart=apply==='mode';setBusy(true);$('device-settings-status').textContent=apply?'Applying and waiting for keyboard reconnection...':'Reading device settings...';
- let refreshAfterReconnect=false;
+ let reloadAfterRestart=false;
  try{
   const reply=await (apply==='mode'?window.keyboard.setPerformanceMode(mode):apply?window.keyboard.setFpsEnhance(enabled):window.keyboard.readDeviceSettings());
-   if(!reply.ok)throw Error(reply.error);deviceSettings=reply.result;$('device-fps').checked=deviceSettings.fpsEnhance===1;showPerformanceMode();refreshAfterReconnect=apply==='mode';
-   $('device-settings-status').textContent=apply?(apply==='mode'?'Performance mode command accepted. The keyboard is reconnecting; use Refresh after it returns.':'FPS Enhance applied. Device settings and preservation of other sections verified.'):'Performance mode and FPS Enhance read from keyboard.';
+   if(!reply.ok)throw Error(reply.error);deviceSettings=reply.result;$('device-fps').checked=deviceSettings.fpsEnhance===1;showPerformanceMode();reloadAfterRestart=apply==='mode'&&!!reply.result.reconnectPending;
+   $('device-settings-status').textContent=apply?(reloadAfterRestart?'Performance mode applied. Reloading after keyboard restart...':'FPS Enhance applied. Device settings and preservation of other sections verified.'):'Performance mode and FPS Enhance read from keyboard.';
  }catch(error){deviceSettings=null;showPerformanceMode();$('device-settings-status').textContent=error.message;}
  finally{setBusy(false);}
- if(refreshAfterReconnect){await loadProfile(layer);$('device-settings-status').textContent=profile?'Performance mode applied and keyboard reconnected.':'Keyboard reconnected, but profile refresh failed. Press Read keyboard.';}
+ if(reloadAfterRestart){setTimeout(()=>window.location.reload(),700);return;}
  expectedDeviceRestart=false;
 }
 $('device-mode-apply').onclick=()=>deviceSettingsAction('mode');

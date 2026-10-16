@@ -174,3 +174,13 @@ test('WebHID reconnect opens a device delivered by the connect event', async () 
     Object.defineProperty(globalThis, 'navigator', { configurable: true, value: originalNavigator });
   }
 });
+
+test('performance mode reports a pending restart so the page can reload', async () => {
+  const adapter = new BrowserAdapter();
+  let reconnectCalled = false;
+  adapter.applyDeviceSetting = async()=>({ changed: true, performanceMode: 1 });
+  adapter.device.reconnect = async()=>{reconnectCalled=true;};
+  const result = await adapter.setPerformanceMode(1);
+  assert.equal(result.reconnectPending, true);
+  assert.equal(reconnectCalled, false);
+});
