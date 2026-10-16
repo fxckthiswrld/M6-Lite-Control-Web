@@ -728,7 +728,7 @@ async function deviceSettingsAction(apply=false){
    $('device-settings-status').textContent=apply?(apply==='mode'?'Performance mode command accepted. The keyboard is reconnecting; use Refresh after it returns.':'FPS Enhance applied. Device settings and preservation of other sections verified.'):'Performance mode and FPS Enhance read from keyboard.';
  }catch(error){deviceSettings=null;showPerformanceMode();$('device-settings-status').textContent=error.message;}
  finally{setBusy(false);}
- if(refreshAfterReconnect){await loadProfile(layer);$('device-settings-status').textContent='Performance mode applied and keyboard reconnected.';}
+ if(refreshAfterReconnect){await loadProfile(layer);$('device-settings-status').textContent=profile?'Performance mode applied and keyboard reconnected.':'Keyboard reconnected, but profile refresh failed. Press Read keyboard.';}
 }
 $('device-mode-apply').onclick=()=>deviceSettingsAction('mode');
 $('device-settings-read').onclick=()=>deviceSettingsAction();$('device-fps').onchange=()=>deviceSettingsAction(true);
