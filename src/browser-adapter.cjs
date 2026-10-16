@@ -9,6 +9,7 @@ const presets=require('./preset-off.cjs');
 const OUT=Buffer.from('8e96ce6af272994858612758e89a7f0195eeed2f','hex');
 const IN=Buffer.from('6a6d64663f2ef0430a41ea8f2bfce0e7d5527ba5','hex');
 const VID=0x2233,PID=0x006b;
+const HID_FILTER={vendorId:VID,productId:PID,usagePage:0x000c};
 const xor=(value,mask)=>Buffer.from(value.map((v,i)=>v^mask[i]));
 const clone=value=>JSON.parse(JSON.stringify(value));
 const backNames={2:'Normal',3:'Breath',4:'Gradient',5:'Stream',6:'Star',7:'Roll'};
@@ -23,7 +24,7 @@ function display(key){return {...key,rtOn:!!key.rtOn,...Object.fromEntries(['hea
 class BrowserDevice {
   constructor(){this.handle=null;}
   get connected(){return !!this.handle?.opened;}
-  async connect(){if(!globalThis.navigator?.hid)throw Error('WebHID is unavailable. Use Chrome or Edge over HTTPS or localhost.');let list=(await navigator.hid.getDevices()).filter(device=>device.vendorId===VID&&device.productId===PID);if(!list.length)list=await navigator.hid.requestDevice({filters:[{vendorId:VID,productId:PID}]});if(!list.length)throw Error('No M6 Lite+ device selected.');this.handle=list[0];if(!this.handle.opened)await this.handle.open();return {connected:true,vendorId:this.handle.vendorId,productId:this.handle.productId,productName:this.handle.productName||'M6 Lite+'};}
+  async connect(){if(!globalThis.navigator?.hid)throw Error('WebHID is unavailable. Use Chrome or Edge over HTTPS or localhost.');const control=device=>device.vendorId===VID&&device.productId===PID&&device.collections?.some(collection=>collection.usagePage===0x000c);let list=(await navigator.hid.getDevices()).filter(control);if(!list.length)list=await navigator.hid.requestDevice({filters:[HID_FILTER]});if(!list.length)throw Error('No M6 Lite+ control interface selected. Choose the device entry with Consumer Control / usage page 12.');this.handle=list[0];if(!this.handle.opened)await this.handle.open();return {connected:true,vendorId:this.handle.vendorId,productId:this.handle.productId,productName:this.handle.productName||'M6 Lite+',interface:'MI02 control'};}
   async send(payload){if(!this.connected)throw Error('Connect the keyboard first.');await this.handle.sendReport(4,xor(Buffer.from(payload),OUT));}
   async readInit(kind){if(!this.connected)throw Error('Connect the keyboard first.');const d=this.handle;return new Promise(async(resolve,reject)=>{let total=null;const parts=new Map();const finish=()=>{clearTimeout(timer);d.removeEventListener('inputreport',on)};const timer=setTimeout(()=>{finish();reject(Error(`Device read timed out (${parts.size}/${total??'?'} packets)`))},4000);const on=event=>{if(event.reportId!==4)return;const report=Buffer.from(event.data.buffer,event.data.byteOffset,event.data.byteLength);const p=report[1]===0xbf?report:Buffer.from(report.map((v,i)=>v^IN[i]));if(p[0]!==8||p[1]!==0||p[2]!==kind)return;const length=p.readUInt16LE(3),sequence=p.readUInt16LE(5);if(!length||sequence<1||sequence>length)return;total??=length;parts.set(sequence,p.subarray(8));if(parts.size===total){finish();resolve(Buffer.concat(Array.from({length:total},(_,i)=>parts.get(i+1))))}};d.addEventListener('inputreport',on);try{const request=Buffer.alloc(20);request.set([8,0,kind]);await this.send(request)}catch(error){finish();reject(error)}})}
 }
