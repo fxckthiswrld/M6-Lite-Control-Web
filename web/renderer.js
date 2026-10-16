@@ -595,12 +595,14 @@ async function loadProfile(nextLayer=layer) {
     else $('pair-status').textContent=programmed.error;
     [...profileBar.children].forEach((b,i)=>b.classList.toggle('active',i===layer));
     deviceWasConnected=true;
+    connectionRecoveryNeeded=false;
     document.querySelector('.online').textContent='Connected - device data loaded';
     $('status').textContent=`M${layer+1} read from keyboard. Select a switch to edit.`;
   } catch(error) {
     profile=null;programming=null;
     document.querySelector('.online').textContent='Device read unavailable: '+error.message;
     $('status').textContent=error.message;
+    if(deviceWasConnected){connectionRecoveryNeeded=true;scheduleConnectionRecovery(1000);}
   } finally {setBusy(false);}
 }
 function scheduleConnectionRecovery(delay=450){
@@ -642,6 +644,9 @@ window.addEventListener('m6-device-status',event=>{
     scheduleConnectionRecovery(350);
   }
 });
+setInterval(()=>{
+  if(deviceWasConnected&&connectionRecoveryNeeded&&!recoveryInFlight&&!recoveryTimer)scheduleConnectionRecovery(250);
+},1000);
 $('read').onclick=()=>loadProfile();
 $('save-memory').onclick=async()=>{if(busy)return;setBusy(true);$('status').textContent='Saving to device memory...';try{const reply=await window.keyboard.saveToDeviceMemory();if(!reply.ok)throw new Error(reply.error);$('status').textContent='Save command acknowledged. Power-cycle verification is still required.';}catch(e){$('status').textContent=e.message;}finally{setBusy(false);}};
 async function saveChanges(all=false) {
