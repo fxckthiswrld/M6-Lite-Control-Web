@@ -64,7 +64,7 @@ let singleState=null,singleReady=false,singleBrightnessRaw=0;
 function showSingleSelection(){
  const ids=Array.from($('single-keys').selectedOptions,o=>o.value),keys=singleState?.keys.filter(k=>ids.includes(k.id))||[];
  if(keys.length){$('single-color').value=keys[0].color;$('single-enabled').checked=keys[0].enabled;singleBrightnessRaw=keys[0].brightness;$('single-brightness').value=Math.round(singleBrightnessRaw*100/255);updateLightingSlider('single-brightness','single-brightness-value');}
- $('single-status').textContent=keys.length?`${keys.length} key(s) selected. ${keys.some(k=>k.color!==keys[0].color||k.enabled!==keys[0].enabled||k.brightness!==keys[0].brightness)?'Mixed values; each Apply changes only its displayed setting.':'Saved values shown.'}`:'Select one or more keys.';
+ $('single-status').textContent=keys.length?`${keys.length} key(s) selected. ${keys.some(k=>k.color!==keys[0].color||k.enabled!==keys[0].enabled||k.brightness!==keys[0].brightness)?'Mixed values; each Apply changes only its displayed setting.':'Saved values shown.'}`:'Click keys on the keyboard to select one or more.';
  updateLightingControls();
 }
 async function readSingleLight(){

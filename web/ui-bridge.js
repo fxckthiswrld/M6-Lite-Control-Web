@@ -136,8 +136,10 @@ for(const [name,nodes] of Object.entries(lightingGroups)){const wrapper=document
   const status=single.querySelector('#single-status');
   const note=status?.nextElementSibling;
   const enabledLabel=single.querySelector('#single-enabled')?.closest('label');
+  const keysLabel=single.querySelector('#single-keys')?.closest('label');
   const brightnessSection=single.querySelector('#single-brightness')?.closest('.lighting-section');
   if(enabledLabel)enabledLabel.classList.add('toggle-row');
+  if(keysLabel)keysLabel.style.display='none';
   if(controls&&brightnessSection){
    const content=document.createElement('div');content.className='lighting-single-content';
    const colours=document.createElement('section');colours.className='lighting-single-colours-card';colours.innerHTML='<h3>Colors</h3>';
