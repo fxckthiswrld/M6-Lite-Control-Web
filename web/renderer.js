@@ -338,8 +338,20 @@ calibrationPanel.innerHTML='<small>HALL EFFECT</small><h2>Calibration</h2><p>Rea
 pendingPanel.after(calibrationPanel);
 const calibrationMap=document.createElement('div');calibrationMap.id='calibration-map';calibrationMap.className='keyboard';calibrationMap.setAttribute('aria-label','Saved switch calibration');calibrationMap.hidden=true;$('keyboard').after(calibrationMap);
 let calibrationActive=false,calibrationStateKnown=false,calibrationPoll=null,calibrationLiveBaseline=null;
-function stopCalibrationPoll(){if(calibrationPoll){clearInterval(calibrationPoll);calibrationPoll=null;}}
-function startCalibrationPoll(){stopCalibrationPoll();const tick=async()=>{if(!calibrationActive||busy)return;try{await refreshCalibration(true);}catch(_error){const live=$('calibration-live');if(live&&!live.textContent)live.textContent='Waiting for calibration data...';}};tick();calibrationPoll=setInterval(tick,500);}
+let calibrationPollBusy=false;
+function stopCalibrationPoll(){if(calibrationPoll){clearTimeout(calibrationPoll);calibrationPoll=null;}}
+function startCalibrationPoll(){
+  stopCalibrationPoll();
+  const tick=async()=>{
+    if(!calibrationActive)return;
+    if(busy||calibrationPollBusy){calibrationPoll=setTimeout(tick,750);return;}
+    calibrationPollBusy=true;
+    try{await refreshCalibration(true);}
+    catch(_error){const live=$('calibration-live');if(live)live.textContent='LIVE · waiting for calibration data...';}
+    finally{calibrationPollBusy=false;if(calibrationActive)calibrationPoll=setTimeout(tick,750);}
+  };
+  tick();
+}
 function setCalibrationActive(value){calibrationActive=value;if(value)calibrationLiveBaseline=null;$('calibration-start').hidden=value;$('calibration-selected').hidden=value;$('calibration-finish').hidden=!value;$('calibration-cancel').hidden=!value;const live=$('calibration-live');if(live){live.classList.toggle('active',value);if(!value)live.textContent='';}}
 function updateSelectedCalibrationButton(){
   $('calibration-selected').disabled=busy||!calibrationStateKnown||calibrationActive||!selectedId;
@@ -393,8 +405,8 @@ async function calibrationCommand(command){
     }else if(command===2){
       if(typeof stopCalibrationPoll==='function')stopCalibrationPoll();
       setCalibrationActive(false);
-      $('calibration-status').textContent='Finish command sent. Reloading...';
-      setTimeout(()=>window.location.reload(),800);
+      $('calibration-status').textContent='Finish command sent. Keyboard is restarting; reloading in 3 seconds...';
+      setTimeout(()=>window.location.reload(),3000);
     }else{
       if(typeof stopCalibrationPoll==='function')stopCalibrationPoll();
       await new Promise(r=>setTimeout(r,1500));
@@ -445,7 +457,7 @@ async function refreshCalibration(silent=false){
     }
     $('calibration-map').replaceChildren(fragment);
     const live=$('calibration-live');
-    if(live&&calibrationActive){const count=changedIds.size;live.textContent=count?`LIVE · ${count} switch${count===1?'':'es'} changed since start`:'LIVE · press switches to see values change';}
+    if(live&&calibrationActive){const count=changedIds.size,stamp=new Date().toLocaleTimeString();live.textContent=(count?`LIVE · ${count} switch${count===1?'':'es'} changed since start`:'LIVE · press switches to see values change')+` · updated ${stamp}`;}
     const summary=Object.entries(data.statusSummary||{}).map(([name,count])=>`${name}: ${count}`).join(' ? ');
     if(!silent)$('calibration-status').textContent=`Read ${data.layout.length} switches${summary?` ? ${summary}`:''}. Backup: ${data.backup}`;
     if(data.comparison){
