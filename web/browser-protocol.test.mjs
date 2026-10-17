@@ -237,3 +237,90 @@ test('Single Light rejects effect requests and invalid brightness before writing
   await assert.rejects(() => adapter.setSingleLight({ keys: ['2:1'] }), /Expected RGB/);
   assert.equal(writes.length, 0);
 });
+
+function settingsFixture() {
+  const sections = new Map([1, 2, 4, 24, 25, 26, 6, 7, 9, 17].map(kind => [kind, Buffer.alloc(kind === 6 ? 228 : 24, kind + 16)]));
+  const deviceSettings = sections.get(1);
+  deviceSettings[3] = 2; deviceSettings[8] = 0; deviceSettings[9] = 7; deviceSettings[12] = 1; deviceSettings[13] = 0;
+  const lighting = sections.get(17);
+  lighting.set([170, 180, 190]); lighting[4] = 0;
+  const writes = [];
+  const device = {
+    readInit(kind) { return Buffer.from(sections.get(kind)); },
+    send(payload) {
+      writes.push(Buffer.from(payload));
+      if (payload[1] !== 2 && payload[1] !== 17) return;
+      const target = payload[1] === 2 ? 1 : 17;
+      payload.copy(sections.get(target), 0, 2, target === 1 ? 16 : 20);
+    }
+  };
+  const adapter = new BrowserAdapter();
+  adapter.device = device;
+  return { sections, adapter, writes };
+}
+
+test('device settings expose MMPanel parity fields', async () => {
+  const { adapter } = settingsFixture();
+  const settings = await adapter.readDeviceSettings();
+  assert.equal(settings.performanceMode, 2);
+  assert.equal(settings.autoCalibration, 0);
+  assert.equal(settings.canEditAutoCalibration, true);
+  assert.equal(settings.autoLightOff, 0);
+  assert.equal(settings.autoLightOffMinutes, 7);
+  assert.equal(settings.canEditAutoLightOff, true);
+  assert.equal(settings.highlight, 0);
+  assert.equal(settings.canEditHighlight, true);
+  assert.deepEqual(settings.saturation, [170, 180, 190]);
+  assert.equal(settings.canEditSaturation, true);
+});
+
+test('Highlight and Saturation patch only their INIT17 bytes', async () => {
+  const { sections, adapter, writes } = settingsFixture();
+  const beforeLight = Buffer.from(sections.get(17));
+  const highlight = await adapter.setHighlight(true);
+  assert.equal(highlight.highlight, 1);
+  assert.deepEqual([...writes[0].subarray(0, 2)], [8, 17]);
+  const expectedLight = Buffer.from(beforeLight); expectedLight[4] = 1;
+  assert.deepEqual(sections.get(17), expectedLight);
+  const saturation = await adapter.setSaturation([64, 128, 255]);
+  assert.deepEqual(saturation.saturation, [64, 128, 255]);
+  expectedLight.set([64, 128, 255]);
+  assert.deepEqual(sections.get(17), expectedLight);
+});
+
+test('Auto calibration and Auto light off patch INIT1 and preserve the delay when disabled', async () => {
+  const { sections, adapter } = settingsFixture();
+  const beforeSettings = Buffer.from(sections.get(1));
+  assert.equal((await adapter.setAutoCalibration(true)).autoCalibration, 1);
+  const expectedSettings = Buffer.from(beforeSettings); expectedSettings[13] = 1;
+  assert.deepEqual(sections.get(1), expectedSettings);
+  const enabled = await adapter.setAutoLightOff({ enabled: true, minutes: 30 });
+  assert.equal(enabled.autoLightOff, 1);
+  assert.equal(enabled.autoLightOffMinutes, 30);
+  expectedSettings[8] = 1; expectedSettings[9] = 30;
+  assert.deepEqual(sections.get(1), expectedSettings);
+  const disabled = await adapter.setAutoLightOff({ enabled: false });
+  assert.equal(disabled.autoLightOff, 0);
+  assert.equal(disabled.autoLightOffMinutes, 30);
+  expectedSettings[8] = 0;
+  assert.deepEqual(sections.get(1), expectedSettings);
+});
+
+test('MMPanel settings reject invalid values before device access', async () => {
+  const { adapter, writes } = settingsFixture();
+  await assert.rejects(() => adapter.setAutoCalibration(1), /enabled or disabled/);
+  await assert.rejects(() => adapter.setHighlight('on'), /enabled or disabled/);
+  await assert.rejects(() => adapter.setAutoLightOff({ enabled: true, minutes: 31 }), /1 to 30/);
+  await assert.rejects(() => adapter.setAutoLightOff({ enabled: true, minutes: 1.5 }), /1 to 30/);
+  await assert.rejects(() => adapter.setSaturation([63, 128, 255]), /three integers/);
+  await assert.rejects(() => adapter.setSaturation([64, 128]), /three integers/);
+  assert.equal(writes.length, 0);
+});
+
+test('unrecognized stored MMPanel values block only their own setting', async () => {
+  const { sections, adapter } = settingsFixture();
+  sections.get(1)[13] = 9;
+  await assert.rejects(() => adapter.setAutoCalibration(true), /Unsupported device setting value/);
+  sections.get(17)[4] = 9;
+  await assert.rejects(() => adapter.setHighlight(true), /Unsupported device setting value/);
+});

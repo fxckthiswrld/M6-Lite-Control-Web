@@ -334,21 +334,21 @@ for(const name of ['media','layer'])$(name+'-standard').onclick=async()=>{
  catch(e){$(name+'-status').textContent=e.message;}finally{setBusy(false);}
 };
 const calibrationPanel=document.createElement('section');calibrationPanel.className='panel';calibrationPanel.hidden=true;
-calibrationPanel.innerHTML='<small>HALL EFFECT</small><h2>Calibration</h2><p>Read the saved sensor ranges for every switch. Reading creates a local backup and preserves the current calibration.</p><button id="calibration-read">Refresh calibration</button><button id="calibration-start">Calibrate all</button><button id="calibration-selected">Calibrate selected key</button><button id="calibration-finish" hidden>Finish</button><button id="calibration-cancel" class="secondary" hidden>Cancel</button><p id="calibration-status" role="status" aria-live="polite">Not read yet.</p><p id="calibration-live" class="calibration-live" role="status" aria-live="polite"></p><p>OK = a saved working sensor range. Not calibrated = factory/reset baseline 2000 / 2200. Error = an unexpected range. Empty = both values are zero.</p><p><strong>Selected-key flow:</strong> tap a switch above, choose Calibrate selected key, press only that switch, choose Finish, then confirm the vendor save prompt. The keyboard may reconnect.</p>';
+calibrationPanel.innerHTML='<small>HALL EFFECT</small><h2>Calibration</h2><p>Read the saved sensor ranges for every switch. Reading creates a local backup and preserves the current calibration.</p><button id="calibration-read">Refresh calibration</button><button id="calibration-start">Calibrate all</button><button id="calibration-selected">Calibrate selected key</button><button id="calibration-finish" hidden>Finish</button><button id="calibration-cancel" class="secondary" hidden>Cancel</button><p id="calibration-status" role="status" aria-live="polite">Not read yet.</p><p id="calibration-live" class="calibration-live" role="status" aria-live="polite"></p><p id="calibration-read-status" class="calibration-read-status">No successful read yet.</p><p>OK = a saved working sensor range. Not calibrated = factory/reset baseline 2000 / 2200. Error = an unexpected range. Empty = both values are zero.</p><p><strong>Selected-key flow:</strong> tap a switch above, choose Calibrate selected key, press only that switch, choose Finish, then confirm the vendor save prompt. The keyboard may reconnect.</p>';
 pendingPanel.after(calibrationPanel);
 const calibrationMap=document.createElement('div');calibrationMap.id='calibration-map';calibrationMap.className='keyboard';calibrationMap.setAttribute('aria-label','Saved switch calibration');calibrationMap.hidden=true;$('keyboard').after(calibrationMap);
 let calibrationActive=false,calibrationStateKnown=false,calibrationPoll=null,calibrationLiveBaseline=null;
-let calibrationPollBusy=false;
-function stopCalibrationPoll(){if(calibrationPoll){clearTimeout(calibrationPoll);calibrationPoll=null;}}
+let calibrationPollBusy=false,calibrationPollGeneration=0,calibrationReadCount=0,calibrationPreviousRanges=null;
+function stopCalibrationPoll(){calibrationPollGeneration++;if(calibrationPoll){clearTimeout(calibrationPoll);calibrationPoll=null;}}
 function startCalibrationPoll(){
-  stopCalibrationPoll();
+  stopCalibrationPoll();const generation=calibrationPollGeneration;
   const tick=async()=>{
-    if(!calibrationActive)return;
+    if(!calibrationActive||generation!==calibrationPollGeneration)return;
     if(busy||calibrationPollBusy){calibrationPoll=setTimeout(tick,750);return;}
     calibrationPollBusy=true;
-    try{await refreshCalibration(true);}
-    catch(_error){const live=$('calibration-live');if(live)live.textContent='LIVE · waiting for calibration data...';}
-    finally{calibrationPollBusy=false;if(calibrationActive)calibrationPoll=setTimeout(tick,750);}
+    try{await refreshCalibration(true,generation);}
+    catch(error){if(generation===calibrationPollGeneration){const read=$('calibration-read-status');if(read)read.textContent=`Read failed: ${error.message}. Displayed values are from the last successful read.`;}}
+    finally{calibrationPollBusy=false;if(calibrationActive&&generation===calibrationPollGeneration)calibrationPoll=setTimeout(tick,750);}
   };
   tick();
 }
@@ -401,7 +401,7 @@ async function calibrationCommand(command){
     if(!reply.ok)throw new Error(reply.error);
     setCalibrationActive(command===1);
     if(command===1){
-      $('calibration-status').textContent='Calibration started. Saved ranges and changes update live. Press switches in any order, then choose Finish.';if(typeof startCalibrationPoll==='function')startCalibrationPoll();
+      $('calibration-status').textContent='Calibration started. Reading stored ranges every second; live values before Finish are not verified. Press switches in any order, then choose Finish.';if(typeof startCalibrationPoll==='function')startCalibrationPoll();
     }else if(command===2){
       if(typeof stopCalibrationPoll==='function')stopCalibrationPoll();
       setCalibrationActive(false);
@@ -428,8 +428,10 @@ $('calibration-finish').onclick=()=>{
   if(window.confirm(prompt))calibrationCommand(2);
 };
 $('calibration-cancel').onclick=()=>calibrationCommand(3);
-async function refreshCalibration(silent=false){
-    const reply=await window.keyboard.readCalibration();if(!reply.ok)throw new Error(reply.error);
+async function refreshCalibration(silent=false,generation){
+    const reply=await window.keyboard.readCalibration();
+    if(generation!==undefined&&generation!==calibrationPollGeneration)return;
+    if(!reply.ok)throw new Error(reply.error);
     const data=reply.result;
     const changedIds=new Set(),changeInfo=new Map();
     if(calibrationActive){
@@ -456,6 +458,10 @@ async function refreshCalibration(silent=false){
       fragment.appendChild(key);
     }
     $('calibration-map').replaceChildren(fragment);
+    const ranges=new Map(data.layout.map(physical=>{const record=data.records[physical.row*14+physical.col];return [physical.id,`${record.min}/${record.max}`];}));
+    const changed=calibrationPreviousRanges?[...ranges].filter(([id,value])=>calibrationPreviousRanges.get(id)!==value).length:null;
+    calibrationPreviousRanges=ranges;calibrationReadCount++;
+    $('calibration-read-status').textContent=`Updated: ${data.readAt}. Successful reads: ${calibrationReadCount}. ${changed===null?'First reading.':`Ranges changed since previous read: ${changed}/${data.layout.length}.`} Updated confirms a successful read, not a new calibration measurement.`;
     const live=$('calibration-live');
     if(live&&calibrationActive){const count=changedIds.size,stamp=new Date().toLocaleTimeString();live.textContent=(count?`LIVE · ${count} switch${count===1?'':'es'} changed since start`:'LIVE · press switches to see values change')+` · updated ${stamp}`;}
     const summary=Object.entries(data.statusSummary||{}).map(([name,count])=>`${name}: ${count}`).join(' ? ');
@@ -553,8 +559,9 @@ function setBusy(value) {
   $('programming-reset').disabled=value||!programming;
   $('device-fps').disabled=value||!deviceSettings?.canEditFps;
   $('device-mode-apply').disabled=value||!deviceSettings?.canEditPerformance;
-  settingsPanel.querySelectorAll('[data-performance-mode]').forEach(button=>{button.disabled=value||!deviceSettings?.canEditPerformance;});
-  updateSelectedCalibrationButton();
+ settingsPanel.querySelectorAll('[data-performance-mode]').forEach(button=>{button.disabled=value||!deviceSettings?.canEditPerformance;});
+ updateSettingControls();
+ updateSelectedCalibrationButton();
   updateProgrammingIndicators();updateKeyValues();
   if(!value&&document.body.dataset.page==='programming'&&typeof syncProgrammingSelection==='function')syncProgrammingSelection();
 }
@@ -817,8 +824,68 @@ async function applyPair(disable=false){
 }
 $('pair-apply').onclick=()=>applyPair();$('pair-disable').onclick=()=>applyPair(true);
 const settingsPanel=document.createElement('section');settingsPanel.className='panel';settingsPanel.hidden=true;
-settingsPanel.innerHTML='<small>DEVICE SETTINGS</small><div class="performance-card"><div class="performance-heading"><h2 id="performance-name">Keyboard Mode</h2><label class="fps-switch"><span>FPS Enhance</span><input id="device-fps" type="checkbox" disabled></label></div><p>Switching modes reboots the keyboard.</p><div class="performance-modes" role="group" aria-label="Keyboard mode"><button type="button" data-performance-mode="0" aria-pressed="false">BeastMode</button><button type="button" data-performance-mode="1" aria-pressed="false">EyeMode</button><button type="button" data-performance-mode="2" aria-pressed="false">DevMode</button></div><div class="actions"><button id="device-mode-apply" disabled>Apply mode</button><button id="device-settings-read" class="secondary">Refresh</button></div></div><p>FPS Enhance is independent of the selected mode. It prioritizes scanning the two rows containing WASD; other rows use a lower scan rate.</p><p>Applying either setting reconnects the keyboard. Use Save to device memory to store it.</p><p id="device-settings-status" role="status"></p><p>Other device settings: In development.</p>';
+settingsPanel.innerHTML='<small>DEVICE SETTINGS</small><div class="performance-card"><div class="performance-heading"><h2 id="performance-name">Keyboard Mode</h2><label class="fps-switch"><span>FPS Enhance</span><input id="device-fps" type="checkbox" disabled></label></div><p>Switching modes reboots the keyboard.</p><div class="performance-modes" role="group" aria-label="Keyboard mode"><button type="button" data-performance-mode="0" aria-pressed="false">BeastMode</button><button type="button" data-performance-mode="1" aria-pressed="false">EyeMode</button><button type="button" data-performance-mode="2" aria-pressed="false">DevMode</button></div><div class="actions"><button id="device-mode-apply" disabled>Apply mode</button><button id="device-settings-read" class="secondary">Refresh</button></div></div><p>FPS Enhance is independent of the selected mode. It prioritizes scanning the two rows containing WASD; other rows use a lower scan rate.</p><p>Applying either setting reconnects the keyboard. Use Save to device memory to store it.</p><p id="device-settings-status" role="status"></p>';
 remapPanel.after(settingsPanel);let deviceSettings=null,performanceDraft=null;
+settingsPanel.insertAdjacentHTML('beforeend',`
+ <div class="device-options-grid">
+  <section class="device-option" data-setting="highlight">
+   <label class="device-option-heading" for="device-highlight"><h3>Highlight</h3><input id="device-highlight" type="checkbox" disabled></label>
+   <p>MMPanel recommends leaving Highlight off for high precision use.</p>
+   <button id="device-highlight-apply" disabled>Apply Highlight</button>
+  </section>
+  <section class="device-option" data-setting="autoCalibration">
+   <label class="device-option-heading" for="device-auto-calibration"><h3>Auto calibration</h3><input id="device-auto-calibration" type="checkbox" disabled></label>
+   <p>Enable the keyboard's automatic calibration aid. Initial manual calibration is still required.</p>
+   <button id="device-auto-calibration-apply" disabled>Apply Auto calibration</button>
+  </section>
+  <section class="device-option" data-setting="autoLightOff">
+   <label class="device-option-heading" for="device-auto-light-off"><h3>Auto light off</h3><input id="device-auto-light-off" type="checkbox" disabled></label>
+   <p>Turn the lights off after inactivity.</p>
+   <label class="device-setting-range" for="device-auto-light-off-minutes">Delay <input id="device-auto-light-off-minutes" type="range" min="1" max="30" step="1" disabled><output id="device-auto-light-off-value" for="device-auto-light-off-minutes"></output></label>
+   <button id="device-auto-light-off-apply" disabled>Apply Auto light off</button>
+  </section>
+  <section class="device-option" data-setting="saturation">
+   <h3>Saturation</h3><p>Adjust the keyboard's R, G and B levels (64–255).</p>
+   ${['R','G','B'].map((channel,i)=>`<label class="device-setting-range" for="device-saturation-${i}">${channel} <input id="device-saturation-${i}" type="range" min="64" max="255" step="1" disabled><output id="device-saturation-value-${i}" for="device-saturation-${i}"></output></label>`).join('')}
+   <button id="device-saturation-apply" disabled>Apply Saturation</button>
+  </section>
+ </div>`);
+const settingActions={
+ highlight:{capability:'canEditHighlight',label:'Highlight',apply:()=>window.keyboard.setHighlight($('device-highlight').checked)},
+ autoCalibration:{capability:'canEditAutoCalibration',label:'Auto calibration',apply:()=>window.keyboard.setAutoCalibration($('device-auto-calibration').checked)},
+ autoLightOff:{capability:'canEditAutoLightOff',label:'Auto light off',apply:()=>window.keyboard.setAutoLightOff({enabled:$('device-auto-light-off').checked,...($('device-auto-light-off').checked?{minutes:Number($('device-auto-light-off-minutes').value)}:{})})},
+ saturation:{capability:'canEditSaturation',label:'Saturation',apply:()=>window.keyboard.setSaturation([0,1,2].map(i=>Number($('device-saturation-'+i).value)))}
+};
+function updateSettingControls(){
+ for(const [name,action] of Object.entries(settingActions)){
+  const card=settingsPanel.querySelector(`[data-setting="${name}"]`),supported=!!deviceSettings?.[action.capability];
+  card.querySelectorAll('input,button').forEach(control=>{control.disabled=busy||!supported;});
+  card.title=deviceSettings&&!supported?'Unrecognized device value. Refresh to read again.':'';
+ }
+ $('device-auto-light-off-minutes').disabled=busy||!deviceSettings?.canEditAutoLightOff||!$('device-auto-light-off').checked;
+}
+function showDeviceSettings(){
+ showPerformanceMode();$('device-fps').checked=deviceSettings?.fpsEnhance===1;
+ $('device-highlight').checked=deviceSettings?.highlight===1;
+ $('device-auto-calibration').checked=deviceSettings?.autoCalibration===1;
+ $('device-auto-light-off').checked=deviceSettings?.autoLightOff===1;
+ const delay=deviceSettings?.autoLightOffMinutes;
+ $('device-auto-light-off-minutes').value=Number.isInteger(delay)&&delay>=1&&delay<=30?delay:1;
+ $('device-auto-light-off-value').value=$('device-auto-light-off-minutes').value+' min';
+ for(const i of [0,1,2]){
+  $('device-saturation-'+i).value=deviceSettings?.saturation?.[i]??64;
+  $('device-saturation-value-'+i).value=deviceSettings?.saturation?.[i]??'—';
+ }
+ updateSettingControls();
+}
+for(const [id,name] of [['highlight','highlight'],['auto-calibration','autoCalibration'],['auto-light-off','autoLightOff'],['saturation','saturation']]){
+ $('device-'+id+'-apply').onclick=()=>deviceSettingsAction(name);
+}
+settingsPanel.querySelectorAll('.device-option input').forEach(input=>input.addEventListener('input',()=>{
+ $('device-auto-light-off-value').value=$('device-auto-light-off-minutes').value+' min';
+ for(const i of [0,1,2])$('device-saturation-value-'+i).value=$('device-saturation-'+i).value;
+ updateSettingControls();$('device-settings-status').textContent='Unapplied changes. Choose Apply for the setting you edited.';
+}));
 function showPerformanceMode(){
  performanceDraft=deviceSettings?.canEditPerformance?deviceSettings.performanceMode:null;
  $('performance-name').textContent='Keyboard Mode';
@@ -831,16 +898,17 @@ for(const button of settingsPanel.querySelectorAll('[data-performance-mode]'))bu
  $('device-settings-status').textContent=['BeastMode','EyeMode','DevMode'][performanceDraft]+' selected. Choose Apply mode to write it to the keyboard.';
 };
 async function deviceSettingsAction(apply=false){
- if(busy||(apply==='mode'?!deviceSettings?.canEditPerformance:apply&&!deviceSettings?.canEditFps))return;
- const enabled=$('device-fps').checked,mode=performanceDraft;expectedDeviceRestart=apply==='mode';setBusy(true);$('device-settings-status').textContent=apply?'Applying and waiting for keyboard reconnection...':'Reading device settings...';
+ const action=settingActions[apply];
+ if(busy||(action?!deviceSettings?.[action.capability]:apply==='mode'?!deviceSettings?.canEditPerformance:apply&&!deviceSettings?.canEditFps))return;
+ const enabled=$('device-fps').checked,mode=performanceDraft;expectedDeviceRestart=apply==='mode';setBusy(true);$('device-settings-status').textContent=apply?'Applying device settings...':'Reading device settings...';
  let reloadAfterRestart=false;
  try{
-  const reply=await (apply==='mode'?window.keyboard.setPerformanceMode(mode):apply?window.keyboard.setFpsEnhance(enabled):window.keyboard.readDeviceSettings());
-   if(!reply.ok)throw Error(reply.error);deviceSettings=reply.result;$('device-fps').checked=deviceSettings.fpsEnhance===1;showPerformanceMode();reloadAfterRestart=apply==='mode'&&!!reply.result.reconnectPending;
-   $('device-settings-status').textContent=apply?(reloadAfterRestart?'Performance mode applied. Reloading after keyboard restart...':'FPS Enhance applied. Device settings and preservation of other sections verified.'):'Performance mode and FPS Enhance read from keyboard.';
- }catch(error){deviceSettings=null;showPerformanceMode();$('device-settings-status').textContent=error.message;}
+   const reply=await (action?action.apply():apply==='mode'?window.keyboard.setPerformanceMode(mode):apply?window.keyboard.setFpsEnhance(enabled):window.keyboard.readDeviceSettings());
+    if(!reply.ok)throw Error(reply.error);deviceSettings=apply?{...deviceSettings,...reply.result}:reply.result;showDeviceSettings();reloadAfterRestart=apply==='mode'&&!!reply.result.reconnectPending;
+    $('device-settings-status').textContent=apply?(reloadAfterRestart?'Performance mode applied. Reloading after keyboard restart...':(action?.label||'FPS Enhance')+' applied. Device readback and preservation of other sections verified.'):'Device settings read from keyboard.';
+ }catch(error){deviceSettings=null;showDeviceSettings();$('device-settings-status').textContent=error.message;}
  finally{setBusy(false);}
- if(reloadAfterRestart){setTimeout(()=>window.location.reload(),700);return;}
+ if(reloadAfterRestart){setTimeout(()=>window.location.reload(),900);return;}
  expectedDeviceRestart=false;
 }
 $('device-mode-apply').onclick=()=>deviceSettingsAction('mode');
@@ -850,7 +918,7 @@ document.querySelectorAll('aside .nav').forEach((nav,i)=>{
   if(![0,1,3].includes(i)){const badge=document.createElement('small');badge.textContent='In development';badge.className='development-badge';nav.appendChild(badge);}
   nav.onclick=()=>{
     if(busy)return;
-    showSelected();
+    showDeviceSettings();showSelected();
     pendingPanel.hidden=true;calibrationPanel.hidden=true;remapPanel.hidden=true;lightingPanel.hidden=true;settingsPanel.hidden=true;
     document.querySelectorAll('aside .nav').forEach(item=>item.classList.toggle('active',item===nav));
     if(i<2){advancedPanel.hidden=true;remapPanel.hidden=true;hePanel.hidden=false;hePanel.scrollIntoView({behavior:'smooth'});return;}

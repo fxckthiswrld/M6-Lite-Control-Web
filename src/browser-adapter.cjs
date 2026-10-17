@@ -70,11 +70,46 @@ class BrowserAdapter {
   async calibrationCommand(command,selectedId){if(![1,2,3].includes(command))throw Error('Unsupported calibration command');if(command===1&&this.calibrationSession?.phase==='active')throw Error('Calibration is already active');let baseline=this.calibrationSession?.baseline;if(command===1){baseline=Array.from(await this.device.readInit(24));calibration.parseCalibration(Buffer.from(baseline));}const p=Buffer.alloc(20);p.set([8,48,command]);await this.device.send(p);const phase=command===1?'active':command===2?'finished':'canceled';this.saveCalibrationSession({phase,baseline,selectedId:selectedId||this.calibrationSession?.selectedId||null,updatedAt:new Date().toISOString()});return {command,started:command===1,finished:command===2,canceled:command===3,backup:'browser-session'};}
   async calibrateSelected(id){if(!layout.some(key=>key.id===id))throw Error('Select one physical switch');return this.calibrationCommand(1,id);}
   async calibrationState(){const s=this.calibrationSession;return {active:s?.phase==='active',phase:s?.phase||'idle',baselineBackup:s?.baseline?'browser-session':null,source:'browser-session',deviceStateVerified:false,...(s?.selectedId?{selectedId:s.selectedId}:{})};}
-  async readDeviceSettings(){const raw=await this.device.readInit(1);if(raw.length<14)throw Error('Incomplete device settings');const performanceMode=raw[3],fpsEnhance=raw[12];return {raw:Array.from(raw),performanceMode,fpsEnhance,autoCalibration:raw[13],windowsLock:raw[5],fnAltSwap:raw[10],canEditFps:[0,1].includes(fpsEnhance),canEditPerformance:[0,1,2].includes(performanceMode),performanceName:['BeastMode','EyeMode','DevMode'][performanceMode]||'Unknown mode'};}
-  async applyDeviceSetting(field,value,{reconnectExpected=false}={}){const raw=await this.device.readInit(1);if(raw.length<14)throw Error('Incomplete device settings');const current=field===12?raw[12]:raw[3];if(field===12&&! [0,1].includes(raw[12]))throw Error('Unsupported device setting value');if(field===3&&! [0,1,2].includes(raw[3]))throw Error('Unsupported device setting value');if(current===value)return this.readDeviceSettings();const expected=Buffer.from(raw);expected[field]=value;const p=Buffer.alloc(20);p.set([8,2]);expected.copy(p,2,0,14);await this.device.send(p);if(reconnectExpected)return {...await this.settingsFromRaw(expected),verified:true,changed:true,reconnectPending:true};await new Promise(r=>setTimeout(r,150));const result=await this.readDeviceSettings();if(result.raw[field]!==value)throw Error('Device settings readback mismatch');return {...result,verified:true,changed:true};}
-  async settingsFromRaw(raw){const performanceMode=raw[3],fpsEnhance=raw[12];return {raw:Array.from(raw),performanceMode,fpsEnhance,autoCalibration:raw[13],windowsLock:raw[5],fnAltSwap:raw[10],canEditFps:[0,1].includes(fpsEnhance),canEditPerformance:[0,1,2].includes(performanceMode),performanceName:['BeastMode','EyeMode','DevMode'][performanceMode]||'Unknown mode'};}
-  async setFpsEnhance(enabled){if(typeof enabled!=='boolean')throw Error('FPS Enhance must be enabled or disabled');return this.applyDeviceSetting(12,enabled?1:0);}
-  async setPerformanceMode(mode){if(![0,1,2].includes(mode))throw Error('Select BeastMode, EyeMode or DevMode');const result=await this.applyDeviceSetting(3,mode,{reconnectExpected:true});if(!result.changed)return result;return {...result,reconnectPending:true};}
+  deviceSettingsFromRaw(raw,light){
+    if(!Buffer.isBuffer(raw)||raw.length<14)throw Error('Incomplete device settings');
+    if(light!==undefined&&(!Buffer.isBuffer(light)||light.length<5))throw Error('Incomplete lighting settings');
+    const isFlag=value=>value===0||value===1;
+    const performanceMode=raw[3],fpsEnhance=raw[12],saturation=light?[light[0],light[1],light[2]]:null;
+    return {raw:Array.from(raw),performanceMode,fpsEnhance,autoCalibration:raw[13],windowsLock:raw[5],fnAltSwap:raw[10],canEditFps:isFlag(fpsEnhance),canEditAutoCalibration:isFlag(raw[13]),canEditPerformance:[0,1,2].includes(performanceMode),performanceName:['BeastMode','EyeMode','DevMode'][performanceMode]||'Unknown mode',autoLightOff:raw[8],autoLightOffMinutes:raw[9],canEditAutoLightOff:isFlag(raw[8]),...(light?{highlight:light[4],canEditHighlight:isFlag(light[4]),saturation,canEditSaturation:saturation.every(value=>Number.isInteger(value)&&value>=64&&value<=255)}:{})};
+  }
+  async readDeviceSettings(){const raw=await this.device.readInit(1),light=await this.device.readInit(17);return this.deviceSettingsFromRaw(raw,light);}
+  async settingsFromRaw(raw,light){return this.deviceSettingsFromRaw(raw,light);}
+  async applyDeviceSetting(patch,{kind=1,includeLight=false,guard,reconnectExpected=false}={}){
+    const beforeRaw=await this.device.readInit(1),beforeLight=await this.device.readInit(17);
+    const settings=this.deviceSettingsFromRaw(beforeRaw,beforeLight);
+    if(guard&&!guard(settings))throw Error('Unsupported device setting value');
+    const source=kind===1?beforeRaw:beforeLight;
+    if(kind===1&&source.length<14)throw Error('Incomplete device settings');
+    if(kind===17&&source.length<18)throw Error('Incomplete lighting settings');
+    const expected=Buffer.from(source);for(const [field,value] of Object.entries(patch))expected[field]=value;
+    if(expected.equals(source))return {...settings,verified:true,changed:false};
+    const dispatch=async target=>{const payload=Buffer.alloc(20);payload.set([8,kind===1?2:17]);target.copy(payload,2,0,kind===1?14:18);await this.device.send(payload);};
+    await dispatch(expected);
+    const resultFrom=(raw,light)=>this.deviceSettingsFromRaw(raw,light);
+    if(reconnectExpected)return {...resultFrom(kind===1?expected:beforeRaw,kind===17?expected:beforeLight),verified:true,changed:true,reconnectPending:true};
+    let lastError;
+    for(let attempt=0;attempt<8;attempt++){
+      await new Promise(resolve=>setTimeout(resolve,300));
+      try{
+        const actual=await this.device.readInit(kind);
+        if(actual.length===expected.length&&actual.subarray(0,expected.length).equals(expected))return {...resultFrom(kind===1?actual:beforeRaw,kind===17?actual:beforeLight),verified:true,changed:true};
+        lastError=Error('Device settings readback mismatch');
+      }catch(error){lastError=error;}
+    }
+    try{await dispatch(source);}catch{}
+    throw lastError||Error('Device settings readback mismatch');
+  }
+  async setFpsEnhance(enabled){if(typeof enabled!=='boolean')throw Error('FPS Enhance must be enabled or disabled');return this.applyDeviceSetting({12:enabled?1:0},{guard:s=>s.canEditFps});}
+  async setPerformanceMode(mode){if(![0,1,2].includes(mode))throw Error('Select BeastMode, EyeMode or DevMode');const result=await this.applyDeviceSetting({3:mode},{reconnectExpected:true,guard:s=>s.canEditPerformance});if(!result.changed)return result;return {...result,reconnectPending:true};}
+  async setAutoCalibration(enabled){if(typeof enabled!=='boolean')throw Error('Auto calibration must be enabled or disabled');return this.applyDeviceSetting({13:Number(enabled)},{includeLight:true,guard:s=>s.canEditAutoCalibration});}
+  async setAutoLightOff(request){if(!request||typeof request.enabled!=='boolean')throw Error('Auto light off must be enabled or disabled');if((request.enabled||request.minutes!==undefined)&&!(Number.isInteger(request.minutes)&&request.minutes>=1&&request.minutes<=30))throw Error('Auto light off delay must be an integer from 1 to 30 minutes');const patch={8:Number(request.enabled)};if(request.minutes!==undefined)patch[9]=request.minutes;return this.applyDeviceSetting(patch,{includeLight:true,guard:s=>s.canEditAutoLightOff});}
+  async setHighlight(enabled){if(typeof enabled!=='boolean')throw Error('Highlight must be enabled or disabled');return this.applyDeviceSetting({4:Number(enabled)},{kind:17,includeLight:true,guard:s=>s.canEditHighlight});}
+  async setSaturation(rgb){if(!Array.isArray(rgb)||rgb.length!==3||!rgb.every(value=>Number.isInteger(value)&&value>=64&&value<=255))throw Error('Saturation requires three integers from 64 to 255');return this.applyDeviceSetting({0:rgb[0],1:rgb[1],2:rgb[2]},{kind:17,includeLight:true,guard:s=>s.canEditSaturation});}
   async saveToDeviceMemory(){const p=Buffer.alloc(20);p.set([8,0xf2]);await this.device.send(p);return {verified:true,acknowledged:true,command:'SAVE_END',persistence:'Pending power-cycle verification'};}
   async quickPreset(request){return this.setQuickPreset(request);}
   async presetOff(request){return this.setQuickPreset({...request,preset:'off'});}
