@@ -4,6 +4,7 @@ const {parseHeProfile,encodeHeWrite}=require('./he-protocol.cjs');
 const prog=require('./key-programming.cjs');
 const layout=require('../web/keyboard-layout.json');
 const calibration=require('./calibration.cjs');
+const telemetry=require('./calibration-telemetry.cjs');
 const heFile=require('./he-profile-file.cjs');
 const presets=require('./preset-off.cjs');
 const OUT=Buffer.from('8e96ce6af272994858612758e89a7f0195eeed2f','hex');
@@ -22,7 +23,7 @@ function backPayload(raw,mode){const offset=8+(mode-2)*10,record=raw.subarray(of
 function underPayload(raw,mode){const m=underModes[mode],record=raw.subarray(m.offset,m.offset+8),p=Buffer.alloc(20);p.set([8,11,0,mode]);if(mode!==7)record.copy(p,4,4,6);if([3,7].includes(mode)){p[8]=record[0];record.copy(p,9,1,4);}return p;}
 function display(key){return {...key,rtOn:!!key.rtOn,...Object.fromEntries(['head','trigger','release','fixedDown','fixedUp','bottom'].map(f=>[f,key[f]/500]))};}
 class BrowserDevice {
-  constructor(){this.handle=null;this.reportId=4;this.lastDevice=null;}
+  constructor(){this.handle=null;this.reportId=4;this.lastDevice=null;this.telemetryHandle=null;this.telemetryListener=null;}
   get connected(){return !!this.handle?.opened;}
   outputReports(device){return (device.collections||[]).flatMap(collection=>collection.outputReports||[]);}
   choose(devices){const writable=device=>this.outputReports(device).some(report=>report.reportId===4);const usage12=device=>(device.collections||[]).some(collection=>collection.usagePage===0x000c);return devices.find(device=>writable(device)&&usage12(device))||devices.find(writable)||null;}
@@ -32,11 +33,44 @@ class BrowserDevice {
   async connect({request=true}={}){if(!globalThis.navigator?.hid)throw Error('WebHID is unavailable. Use Chrome or Edge over HTTPS or localhost.');const all=(await navigator.hid.getDevices()).filter(device=>device.vendorId===VID&&device.productId===PID);let selected=this.choose(all);if(!selected&&!request)throw Error('No paired M6 Lite+ keyboard was found. Click Connect keyboard to choose it.');if(!selected){const requested=await navigator.hid.requestDevice({filters:[HID_FILTER]});selected=this.choose(requested);if(!selected){const details=requested.map(device=>`${device.productName||'M6 Lite+'}: reports ${this.outputReports(device).map(report=>report.reportId).join(',')||'none'}`).join('; ');throw Error(`M6 Lite+ control interface with output report 4 was not selected. ${details||'Choose the configuration interface in the WebHID dialog.'}`);}}return this.openSelected(selected);}
   async reconnect({timeout=30000,interval=200}={}){if(!globalThis.navigator?.hid)throw Error('WebHID is unavailable. Use Chrome or Edge over HTTPS or localhost.');if(this.handle){try{if(this.handle.opened)await this.handle.close();}catch{}this.handle=null;}const hid=navigator.hid,pending=[];const onConnect=event=>{const device=event.device;if(device?.vendorId===VID&&device?.productId===PID&&!pending.includes(device))pending.push(device);};hid.addEventListener?.('connect',onConnect);const deadline=Date.now()+timeout;let lastError=null;try{while(Date.now()<deadline){try{const all=(await hid.getDevices()).filter(device=>device.vendorId===VID&&device.productId===PID);for(const candidate of this.candidates([...pending,...all])){try{return await this.openSelected(candidate);}catch(error){lastError=error;}}}catch(error){lastError=error;}await new Promise(resolve=>setTimeout(resolve,interval));}}finally{hid.removeEventListener?.('connect',onConnect);}throw Error(`Keyboard did not reconnect within ${timeout} ms${lastError?`: ${lastError.message}`:''}. Press Connect keyboard to retry.`);}
   invalidate(device=this.handle){if(!device||device===this.handle){this.handle=null;}}
+  startCalibrationTelemetry(callback){
+    if(this.telemetryListener)return;
+    const handle=this.handle;if(!handle)return;
+    const listener=event=>{
+      try{
+        const bytes=Buffer.from(event.data.buffer,event.data.byteOffset,event.data.byteLength);
+        const report=bytes.length===21&&bytes[0]===this.reportId?bytes.subarray(1):bytes;
+        if(report.length<20)return;
+        const payload=report[1]===0xbf?report:Buffer.from(report.map((v,i)=>v^IN[i]));
+        if(payload[0]!==8||payload[1]!==0x30)return;
+        callback(payload);
+      }catch{}
+    };
+    handle.addEventListener('inputreport',listener);
+    this.telemetryHandle=handle;this.telemetryListener=listener;
+  }
+  stopCalibrationTelemetry(){
+    if(!this.telemetryListener)return;
+    try{this.telemetryHandle?.removeEventListener('inputreport',this.telemetryListener);}catch{}
+    this.telemetryListener=null;this.telemetryHandle=null;
+  }
   async send(payload){if(!this.connected)throw Error('Connect the keyboard first.');const data=Uint8Array.from(xor(Buffer.from(payload),OUT));const handle=this.handle;try{await handle.sendReport(this.reportId,data);}catch(error){this.invalidate(handle);const reports=(handle.collections||[]).flatMap(collection=>collection.outputReports||[]);throw Error(`Failed to write HID report ${this.reportId} (${data.byteLength} bytes) on ${handle.productName||'M6 Lite+'}; available output reports: ${reports.map(report=>`${report.reportId}:${report.reportSize} bits`).join(', ')||'none'}. ${error.message}`);}}
   async readInit(kind){if(!this.connected)throw Error('Connect the keyboard first.');const d=this.handle;return new Promise(async(resolve,reject)=>{let total=null;const parts=new Map(),seen=[],request=Buffer.alloc(20);request.set([8,0,kind]);let attempts=0;const finish=()=>{clearTimeout(timer);clearTimeout(retryTimer);d.removeEventListener('inputreport',on)};const timer=setTimeout(()=>{finish();const detail=seen.length?` Received ${seen.map(item=>`${item.length} bytes/report ${item.id}`).join(', ')}.`:' No input reports received.';reject(Error(`Device read timed out for INIT${kind} (${parts.size}/${total??'?'} packets).${detail}`))},6000);const retryTimer=setTimeout(async()=>{if(parts.size===0&&attempts<2){attempts++;try{await this.send(request);}catch(error){finish();reject(error);}}},700);const on=event=>{const id=event.reportId??0,bytes=Buffer.from(event.data.buffer,event.data.byteOffset,event.data.byteLength);if(seen.length<8&&!seen.some(item=>item.id===id&&item.length===bytes.length))seen.push({id,length:bytes.length});if(id!==this.reportId&&id!==4&&id!==0)return;const report=bytes.length===21&&bytes[0]===this.reportId?bytes.subarray(1):bytes;if(report.length<20)return;const p=report[1]===0xbf?report:Buffer.from(report.map((v,i)=>v^IN[i]));if(p[0]!==8||p[1]!==0||p[2]!==kind)return;const length=p.readUInt16LE(3),sequence=p.readUInt16LE(5);if(!length||sequence<1||sequence>length)return;total??=length;parts.set(sequence,p.subarray(8));if(parts.size===total){finish();resolve(Buffer.concat(Array.from({length:total},(_,i)=>parts.get(i+1))))}};d.addEventListener('inputreport',on);try{attempts++;await this.send(request)}catch(error){finish();reject(error)}})}
 }
 class BrowserAdapter {
-  constructor(){this.device=new BrowserDevice();this.layer=0;this.calibrationSession=this.loadCalibrationSession();}
+  constructor(){this.device=new BrowserDevice();this.layer=0;this.calibrationSession=this.loadCalibrationSession();this.calibrationLive=new Map();this.calibrationLiveUpdatedAt=null;this.calibrationTelemetryFrames=0;this.calibrationTelemetryRejected=0;this.calibrationTelemetryError=null;}
+  startCalibrationTelemetry(){
+    if(typeof this.device.startCalibrationTelemetry!=='function')return;
+    const keys=layout.map(({id,row,col})=>({id,row,col}));
+    this.device.startCalibrationTelemetry(payload=>{
+      this.calibrationTelemetryFrames++;
+      try{
+        const decoded=telemetry.decodeCalibrationPayload(payload,keys);
+        if(decoded?.entries?.length){telemetry.mergeCalibrationEntries(this.calibrationLive,decoded.entries);this.calibrationLiveUpdatedAt=new Date().toISOString();}
+      }catch(error){this.calibrationTelemetryRejected++;this.calibrationTelemetryError=error.message;}
+    });
+  }
+  stopCalibrationTelemetry(){this.device.stopCalibrationTelemetry?.();}
   async connect(){return this.device.connect();}
   async autoConnect(){return this.device.connect({request:false});}
   async reconnect(options){return this.device.reconnect(options);}
@@ -77,8 +111,24 @@ class BrowserAdapter {
   loadCalibrationSession(){try{const value=globalThis.localStorage?.getItem('m6-calibration-session');return value?JSON.parse(value):null;}catch{return null;}}
   saveCalibrationSession(session){this.calibrationSession=session;try{globalThis.localStorage?.setItem('m6-calibration-session',JSON.stringify(session));}catch{}}
   async readCalibration(){const raw=await this.device.readInit(24),records=calibration.parseCalibration(raw),visible=calibration.visibleCalibrationRecords(records,layout);let comparison=null;const session=this.calibrationSession;if(session?.baseline){const before=Buffer.from(session.baseline);comparison={...calibration.compareCalibration(before,raw,layout),phase:session.phase,baselineBackup:'browser-session',cancelVerified:session.phase==='canceled'?before.equals(raw):null,persistenceVerified:false};const selectedIds=session.selectedIds||(session.selectedId?[session.selectedId]:[]);if(selectedIds.length){const selectedChanges=comparison.changedKeys.filter(k=>selectedIds.includes(k.id)),unexpected=comparison.changedRecords.filter(k=>!selectedIds.includes(k.id)),single=selectedIds.length===1?selectedChanges[0]:null;comparison.selectedScope={ids:selectedIds,...(single?{id:single.id}:{}),selectedChanged:selectedChanges.length>0,otherRecordsUnchanged:unexpected.length===0,unexpectedRecords:unexpected.map(k=>({index:k.index,id:k.id,label:k.label})),verified:session.phase==='finished'&&selectedChanges.length>0&&unexpected.length===0&&selectedChanges.every(change=>change.rangeChanged&&!change.modelChanged&&!change.reservedChanged&&change.after.rangeStatus==='ok')};}}
-    return {records,visible,layout,backup:'browser-session',comparison,readAt:new Date().toISOString(),liveProgressAvailable:false,statusSummary:visible.reduce((s,k)=>(s[k.rangeStatus]=(s[k.rangeStatus]||0)+1,s),{})};}
-  async calibrationCommand(command,selected){if(![1,2,3].includes(command))throw Error('Unsupported calibration command');if(command===1&&this.calibrationSession?.phase==='active')throw Error('Calibration is already active');const selectedIds=Array.isArray(selected)?selected.filter(Boolean):(selected?[selected]:[]);let baseline=this.calibrationSession?.baseline;if(command===1){baseline=Array.from(await this.device.readInit(24));calibration.parseCalibration(Buffer.from(baseline));}const p=Buffer.alloc(20);p.set([8,48,command]);await this.device.send(p);const phase=command===1?'active':command===2?'finished':'canceled';this.saveCalibrationSession({phase,baseline,selectedIds:selectedIds.length?selectedIds:(this.calibrationSession?.selectedIds||null),selectedId:selectedIds[0]||this.calibrationSession?.selectedId||null,updatedAt:new Date().toISOString()});return {command,started:command===1,finished:command===2,canceled:command===3,backup:'browser-session'};}
+    const liveActive=this.calibrationSession?.phase==='active';
+    const liveEntries=liveActive?[...this.calibrationLive.values()]:[];
+    const liveRecords=Object.fromEntries(liveEntries.map(entry=>[entry.id,{...entry}]));
+    return {records,visible,layout,backup:'browser-session',comparison,readAt:new Date().toISOString(),liveProgressAvailable:liveActive&&liveEntries.length>0,live:{active:liveActive,available:liveActive&&liveEntries.length>0,count:liveEntries.length,updatedAt:liveActive?this.calibrationLiveUpdatedAt:null,frames:liveActive?this.calibrationTelemetryFrames:0,rejected:liveActive?this.calibrationTelemetryRejected:0,error:liveActive?this.calibrationTelemetryError:null,records:liveRecords},statusSummary:visible.reduce((s,k)=>(s[k.rangeStatus]=(s[k.rangeStatus]||0)+1,s),{})};}
+  async calibrationCommand(command,selected){
+    if(![1,2,3].includes(command))throw Error('Unsupported calibration command');
+    if(command===1&&this.calibrationSession?.phase==='active')throw Error('Calibration is already active');
+    if(command!==1)this.stopCalibrationTelemetry();
+    const selectedIds=Array.isArray(selected)?selected.filter(Boolean):(selected?[selected]:[]);
+    let baseline=this.calibrationSession?.baseline;
+    if(command===1){baseline=Array.from(await this.device.readInit(24));calibration.parseCalibration(Buffer.from(baseline));}
+    if(command===1){this.calibrationLive.clear();this.calibrationLiveUpdatedAt=null;this.calibrationTelemetryFrames=0;this.calibrationTelemetryRejected=0;this.calibrationTelemetryError=null;}
+    const p=Buffer.alloc(20);p.set([8,48,command]);await this.device.send(p);
+    const phase=command===1?'active':command===2?'finished':'canceled';
+    this.saveCalibrationSession({phase,baseline,selectedIds:selectedIds.length?selectedIds:(this.calibrationSession?.selectedIds||null),selectedId:selectedIds[0]||this.calibrationSession?.selectedId||null,updatedAt:new Date().toISOString()});
+    if(command===1)this.startCalibrationTelemetry();
+    return {command,started:command===1,finished:command===2,canceled:command===3,backup:'browser-session'};
+  }
   async calibrateSelected(id){if(!layout.some(key=>key.id===id))throw Error('Select one physical switch');return this.calibrationCommand(1,id);}
   async calibrateSelectedKeys(ids){if(!Array.isArray(ids)||!ids.length||ids.some(id=>!layout.some(key=>key.id===id)))throw Error('Select one or more physical switches');return this.calibrationCommand(1,ids);}
   async calibrationState(){const s=this.calibrationSession;return {active:s?.phase==='active',phase:s?.phase||'idle',baselineBackup:s?.baseline?'browser-session':null,source:'browser-session',deviceStateVerified:false,...(s?.selectedId?{selectedId:s.selectedId}:{}),...(s?.selectedIds?{selectedIds:s.selectedIds}:{})};}

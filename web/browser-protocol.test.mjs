@@ -403,3 +403,26 @@ test('calibrate selected keys rejects unknown switches', async () => {
   adapter.device = { readInit() { throw new Error('unexpected device access'); }, send() {} };
   await assert.rejects(() => adapter.calibrateSelectedKeys(['bad']), /one or more physical switches/);
 });
+
+test('calibration telemetry decodes three slots and merges by physical key id', () => {
+  const telemetry = require('../src/calibration-telemetry.cjs');
+  const keys = layout.map(({ id, row, col }) => ({ id, row, col }));
+  const payload = Buffer.alloc(20); payload[1] = 0x30;
+  payload[5] = 0; payload.writeUInt16LE(2100, 6); payload.writeUInt16LE(2800, 8);
+  payload[10] = 1; payload.writeUInt16LE(1500, 11); payload.writeUInt16LE(1900, 13);
+  payload[15] = 255;
+  const decoded = telemetry.decodeCalibrationPayload(payload, keys);
+  assert.ok(decoded);
+  assert.equal(decoded.entries.length, 2);
+  assert.equal(decoded.entries[0].id, keys[0].id);
+  const merged = telemetry.mergeCalibrationEntries(new Map(), decoded.entries);
+  assert.equal(merged.get(keys[0].id).rangeStatus, 'ok');
+  assert.equal(merged.get(keys[1].id).rangeStatus, 'not-calibrated');
+});
+
+test('calibration telemetry ignores unrelated payloads', () => {
+  const telemetry = require('../src/calibration-telemetry.cjs');
+  const keys = layout.map(({ id, row, col }) => ({ id, row, col }));
+  const payload = Buffer.alloc(20); payload[1] = 0;
+  assert.equal(telemetry.decodeCalibrationPayload(payload, keys), null);
+});

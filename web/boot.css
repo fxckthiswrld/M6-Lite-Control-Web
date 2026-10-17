@@ -165,3 +165,5 @@ body[data-page=programming] .key[data-assignment-kind=fn]:after,body[data-page=p
 
 #settings-panel{max-width:1048px;margin-left:0;margin-right:0}
 #settings-panel .performance-card,#settings-panel .device-options-grid,#settings-panel .device-data{max-width:1000px}
+
+.calibration-key[data-state=pending]{border-color:#d6aa64;border-style:dashed}

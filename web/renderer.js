@@ -405,7 +405,7 @@ async function calibrationCommand(command){
     if(!reply.ok)throw new Error(reply.error);
     setCalibrationActive(command===1);
     if(command===1){
-      $('calibration-status').textContent='Calibration started. Reading stored ranges every second; live values before Finish are not verified. Press switches in any order, then choose Finish.';if(typeof startCalibrationPoll==='function')startCalibrationPoll();
+      $('calibration-status').textContent='Calibration started. Reading saved ranges and listening for live calibration telemetry. Press switches in any order, then choose Finish.';if(typeof startCalibrationPoll==='function')startCalibrationPoll();
     }else if(command===2){
       if(typeof stopCalibrationPoll==='function')stopCalibrationPoll();
       setCalibrationActive(false);
@@ -443,7 +443,7 @@ $('calibration-selected').onclick=async()=>{
     const reply=await window.keyboard.calibrateSelectedKeys(ids);
     if(!reply.ok)throw new Error(reply.error);
     setCalibrationActive(true);
-    $('calibration-status').textContent=ids.length===1?`Selected-key calibration started for ${names[0]}. Press only this key, then choose Finish.`:`Calibration started for ${ids.length} switches: ${names.join(', ')}. Press only the selected switches, then choose Finish.`;
+    $('calibration-status').textContent=ids.length===1?`Selected-key calibration started for ${names[0]}. Live telemetry will mark received values; press only this key, then choose Finish.`:`Calibration started for ${ids.length} switches: ${names.join(', ')}. Live telemetry will mark received values; press only the selected switches, then choose Finish.`;
     startCalibrationPoll();
   }catch(error){$('calibration-status').textContent=error.message;}
   finally{setBusy(false);updateSelectedCalibrationButton();}
@@ -458,11 +458,12 @@ async function refreshCalibration(silent=false,generation){
     if(generation!==undefined&&generation!==calibrationPollGeneration)return;
     if(!reply.ok)throw new Error(reply.error);
     const data=reply.result;
+    const displayRecord=physical=>{const stored=data.records[physical.row*14+physical.col],live=data.live?.active?data.live.records?.[physical.id]:null;return {stored,liveRecord:live,record:live||stored,pending:data.live?.active&&!live};};
     const changedIds=new Set(),changeInfo=new Map();
     if(calibrationActive){
       if(!calibrationLiveBaseline)calibrationLiveBaseline=new Map();
       for(const physical of data.layout){
-        const record=data.records[physical.row*14+physical.col];if(!record)continue;
+        const {record}=displayRecord(physical);if(!record)continue;
         const previous=calibrationLiveBaseline.get(physical.id);
         if(!previous)calibrationLiveBaseline.set(physical.id,{min:record.min,max:record.max});
         else if(previous.min!==record.min||previous.max!==record.max){changedIds.add(physical.id);changeInfo.set(physical.id,previous);}
@@ -471,24 +472,28 @@ async function refreshCalibration(silent=false,generation){
     }
     const fragment=document.createDocumentFragment();
     for(const physical of data.layout){
-      const record=data.records[physical.row*14+physical.col];
+      const {stored,liveRecord,record,pending}=displayRecord(physical);
       const changed=calibrationActive&&changedIds.has(physical.id),previous=changed?changeInfo.get(physical.id):null;
-      const key=document.createElement('button');key.type='button';key.className='calibration-key';key.dataset.id=physical.id;key.dataset.state=record.rangeStatus;
+      const key=document.createElement('button');key.type='button';key.className='calibration-key';key.dataset.id=physical.id;key.dataset.state=pending?'pending':record.rangeStatus;
       if(calibrationSelectedIds.has(physical.id))key.classList.add('chosen');
       if(changed)key.classList.add('changed');
       key.style.left=`${3+physical.x/680*94}%`;key.style.top=`${18+physical.y*1.65}px`;key.style.width=`${physical.width/680*94}%`;
-      for(const value of [physical.label||'Space',record.rangeStatus==='ok'?'OK':record.rangeStatus,`${record.min} / ${record.max}`]){const label=document.createElement('span');label.textContent=value;key.appendChild(label);}
-      key.title=`${physical.label}: sensor min ${record.min}, max ${record.max}, model ${record.model}.${previous?` Live change from ${previous.min} / ${previous.max}.`:''} Tap to select for single-switch calibration.`;
+      const stateLabel=liveRecord?(liveRecord.rangeStatus==='ok'?'OK · live':liveRecord.rangeStatus):pending?'Pending':stored.rangeStatus==='ok'?'OK':stored.rangeStatus;
+      const values=liveRecord?`${liveRecord.min} / ${liveRecord.max}`:`${stored.min} / ${stored.max}${pending?' · stored':''}`;
+      for(const value of [physical.label||'Space',stateLabel,values]){const label=document.createElement('span');label.textContent=value;key.appendChild(label);}
+      key.title=liveRecord?`${physical.label}: live sensor min ${liveRecord.min}, max ${liveRecord.max}`:`${physical.label}: stored sensor min ${stored.min}, max ${stored.max}${pending?' (no live measurement received yet)':''}${previous?` · was ${previous.min} / ${previous.max}`:''}. Tap to select for single-switch calibration.`;
       key.onclick=()=>selectCalibrationKey(physical.id);
       fragment.appendChild(key);
     }
     $('calibration-map').replaceChildren(fragment);
-    const ranges=new Map(data.layout.map(physical=>{const record=data.records[physical.row*14+physical.col];return [physical.id,`${record.min}/${record.max}`];}));
+    const ranges=new Map(data.layout.map(physical=>{const {record}=displayRecord(physical);return [physical.id,`${record.min}/${record.max}`];}));
     const changed=calibrationPreviousRanges?[...ranges].filter(([id,value])=>calibrationPreviousRanges.get(id)!==value).length:null;
     calibrationPreviousRanges=ranges;calibrationReadCount++;
-    $('calibration-read-status').textContent=`Updated: ${data.readAt}. Successful reads: ${calibrationReadCount}. ${changed===null?'First reading.':`Ranges changed since previous read: ${changed}/${data.layout.length}.`} Updated confirms a successful read, not a new calibration measurement.`;
+    const telemetryDetail=data.live?.active?` Frames: ${data.live.frames??0}${data.live.rejected?`, rejected: ${data.live.rejected}`:''}${data.live.error?`, error: ${data.live.error}`:''}.`:'';
+    const liveStatus=data.live?.active?(data.live.available?` Live calibration telemetry: ${data.live.count}/${data.layout.length} switches. Values marked “live”; remaining values are stored.${telemetryDetail}`:` Live telemetry not observed yet; values shown are stored and remaining switches are Pending.${telemetryDetail}`):'';
+    $('calibration-read-status').textContent=`Updated: ${data.readAt}. Successful reads: ${calibrationReadCount}. ${changed===null?'First reading.':`Ranges changed since previous read: ${changed}/${data.layout.length}.`}${liveStatus}${data.live?.active?'':' Updated confirms a successful read, not a new calibration measurement.'}`;
     const live=$('calibration-live');
-    if(live&&calibrationActive){const count=changedIds.size,stamp=new Date().toLocaleTimeString();live.textContent=(count?`LIVE · ${count} switch${count===1?'':'es'} changed since start`:'LIVE · press switches to see values change')+` · updated ${stamp}`;}
+    if(live&&calibrationActive){const d=data.live,stamp=new Date().toLocaleTimeString();live.textContent=(d?.active?(d.available?`LIVE · ${d.count}/${data.layout.length} switches · frames ${d.frames??0}${d.rejected?` · rejected ${d.rejected}`:''}`:'LIVE · telemetry not observed yet'):'LIVE · waiting for telemetry')+` · updated ${stamp}`;}
     const summary=Object.entries(data.statusSummary||{}).map(([name,count])=>`${name}: ${count}`).join(' ? ');
     if(!silent)$('calibration-status').textContent=`Read ${data.layout.length} switches${summary?` ? ${summary}`:''}. Backup: ${data.backup}`;
     if(data.comparison){
