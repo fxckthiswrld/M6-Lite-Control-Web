@@ -173,22 +173,3 @@ body[data-page=programming] .key[data-assignment-kind=fn]:after,body[data-page=p
 .settings-column-right .device-options-grid{margin-top:0;grid-template-columns:repeat(2,minmax(0,1fr))}
 @media(max-width:1100px){.settings-grid{grid-template-columns:1fr}}
 @media(max-width:700px){.settings-column-right .device-options-grid{grid-template-columns:1fr}}
-
-/* Unified design system */
-main{max-width:1280px}
-.panel{background:#131316!important;border:1px solid #27272a!important;border-radius:20px!important;padding:22px!important}
-.shortcut-panel{background:#18181b!important;border:1px solid #27272a!important;border-radius:20px!important;padding:22px!important}
-.device-data,.performance-card,.device-option,.programming-card,.programming-off-card,.programming-help-card,.lighting-colours-card,.lighting-effects-card,.lighting-under-colours-card,.lighting-under-effects-card,.lighting-single-colours-card,.lighting-single-brightness-card{background:#18181b!important;border:1px solid #27272a!important;border-radius:16px!important}
-.lighting-back-card,.lighting-under-card,.lighting-single-card,.lighting-panel{background:transparent!important;border:0!important;padding:0!important}
-.lighting-global,.lighting-section,#lighting-color-controls,.lighting-under-colour,.lighting-under-mode{background:#141417!important;border:1px solid #27272a!important;border-radius:12px!important}
-.programming-slot{background:#141417!important;border-color:#3f3f46!important}
-.programming-slot.assigned{background:#0b1f2e!important;border-color:#1d6f9c!important}
-.panel small,.shortcut-panel small,.eyebrow{color:#8e919c!important;font-size:10px!important;letter-spacing:1.6px!important;font-weight:600!important}
-.panel h2,.shortcut-panel h3{font-size:20px;letter-spacing:-.3px}
-.panel h3{font-size:15px}
-.page-heading{padding:22px 0 16px}
-.page-heading h2{margin:0;font-size:30px;font-weight:700;letter-spacing:-.6px}
-.page-heading p{margin:8px 0 0;font-size:13px;color:#a1a1aa}
-main input:not([type=range]):not([type=checkbox]):not([type=color]),main select{background:#141417!important;border:1px solid #2a2a2e!important;border-radius:10px!important;color:#f4f4f5!important;padding:10px 12px!important}
-main input:not([type=range]):not([type=checkbox]):not([type=color]):focus,main select:focus{border-color:#008cff!important;outline:none!important;box-shadow:0 0 0 2px #008cff33!important}
-.calibration-key{background:#27272a;border:1px solid #3f3f46;border-radius:8px;color:#e4e4e7}
