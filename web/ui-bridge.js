@@ -59,7 +59,7 @@ for(const [name,nodes] of Object.entries(programmingGroups)){
   const offHeading=document.createElement('h3');offHeading.textContent='Off / Enable key';offCard.append(offHeading);
   for(const node of nodes){if(node.tagName==='H2'){node.remove();continue;}node.hidden=false;offCard.append(node);}
   offCard.insertAdjacentHTML('beforeend','<button id="programming-reset-all" class="secondary">Reset all keys to Standard</button><p id="programming-reset-all-status" role="status"></p>');
-  $('programming-reset-all').onclick=async()=>{
+  offCard.querySelector('#programming-reset-all').onclick=async()=>{
    if(busy||!programming)return;
    if(!window.confirm('Reset all programming assignments for this profile to Standard?\n\nA backup will be kept, but automatic undo is unavailable.'))return;
    setBusy(true);$('programming-reset-all-status').textContent='Resetting all keys...';
