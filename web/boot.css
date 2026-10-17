@@ -93,3 +93,9 @@ body[data-page=lighting] .key.key-selected{background:#093e65;border-color:#008c
 #calibration-map .calibration-key{cursor:pointer;padding:4px;font:inherit;font-size:10px;color:#e8edf5;text-align:center}
 #calibration-map .calibration-key:hover{border-color:#4eafff;filter:brightness(1.15)}
 #calibration-map .calibration-key.chosen{background:#0b3a5c;border-color:#008cff;box-shadow:0 0 0 2px #008cff}
+
+.calibration-live{min-height:18px;margin:6px 0 8px;font-size:12px;font-weight:600;color:#f2ba72}
+.calibration-live.active::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:#f2ba72;margin-right:8px;vertical-align:1px;animation:cal-live-pulse 1s ease-in-out infinite}
+.calibration-key.changed{border-color:#f2ba72!important;box-shadow:0 0 0 2px #f2ba7266!important}
+.calibration-key.changed span:last-child{color:#f2ba72}
+@keyframes cal-live-pulse{50%{opacity:.25}}

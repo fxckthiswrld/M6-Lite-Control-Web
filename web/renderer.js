@@ -334,13 +334,13 @@ for(const name of ['media','layer'])$(name+'-standard').onclick=async()=>{
  catch(e){$(name+'-status').textContent=e.message;}finally{setBusy(false);}
 };
 const calibrationPanel=document.createElement('section');calibrationPanel.className='panel';calibrationPanel.hidden=true;
-calibrationPanel.innerHTML='<small>HALL EFFECT</small><h2>Calibration</h2><p>Read the saved sensor ranges for every switch. Reading creates a local backup and preserves the current calibration.</p><button id="calibration-read">Refresh calibration</button><button id="calibration-start">Calibrate all</button><button id="calibration-selected">Calibrate selected key</button><button id="calibration-finish" hidden>Finish</button><button id="calibration-cancel" class="secondary" hidden>Cancel</button><p id="calibration-status" role="status" aria-live="polite">Not read yet.</p><p>OK = a saved working sensor range. Not calibrated = factory/reset baseline 2000 / 2200. Error = an unexpected range. Empty = both values are zero.</p><p><strong>Selected-key flow:</strong> tap a switch above, choose Calibrate selected key, press only that switch, choose Finish, then confirm the vendor save prompt. The keyboard may reconnect.</p>';
+calibrationPanel.innerHTML='<small>HALL EFFECT</small><h2>Calibration</h2><p>Read the saved sensor ranges for every switch. Reading creates a local backup and preserves the current calibration.</p><button id="calibration-read">Refresh calibration</button><button id="calibration-start">Calibrate all</button><button id="calibration-selected">Calibrate selected key</button><button id="calibration-finish" hidden>Finish</button><button id="calibration-cancel" class="secondary" hidden>Cancel</button><p id="calibration-status" role="status" aria-live="polite">Not read yet.</p><p id="calibration-live" class="calibration-live" role="status" aria-live="polite"></p><p>OK = a saved working sensor range. Not calibrated = factory/reset baseline 2000 / 2200. Error = an unexpected range. Empty = both values are zero.</p><p><strong>Selected-key flow:</strong> tap a switch above, choose Calibrate selected key, press only that switch, choose Finish, then confirm the vendor save prompt. The keyboard may reconnect.</p>';
 pendingPanel.after(calibrationPanel);
 const calibrationMap=document.createElement('div');calibrationMap.id='calibration-map';calibrationMap.className='keyboard';calibrationMap.setAttribute('aria-label','Saved switch calibration');calibrationMap.hidden=true;$('keyboard').after(calibrationMap);
 let calibrationActive=false,calibrationStateKnown=false,calibrationPoll=null;
 function stopCalibrationPoll(){if(calibrationPoll){clearInterval(calibrationPoll);calibrationPoll=null;}}
-function startCalibrationPoll(){stopCalibrationPoll();calibrationPoll=setInterval(async()=>{if(!calibrationActive||busy)return;try{await refreshCalibration(true);}catch(_error){}},1000);}
-function setCalibrationActive(value){calibrationActive=value;$('calibration-start').hidden=value;$('calibration-selected').hidden=value;$('calibration-finish').hidden=!value;$('calibration-cancel').hidden=!value;}
+function startCalibrationPoll(){stopCalibrationPoll();const tick=async()=>{if(!calibrationActive||busy)return;try{await refreshCalibration(true);}catch(_error){const live=$('calibration-live');if(live&&!live.textContent)live.textContent='Waiting for calibration data...';}};tick();calibrationPoll=setInterval(tick,500);}
+function setCalibrationActive(value){calibrationActive=value;$('calibration-start').hidden=value;$('calibration-selected').hidden=value;$('calibration-finish').hidden=!value;$('calibration-cancel').hidden=!value;const live=$('calibration-live');if(live){live.classList.toggle('active',value);if(!value)live.textContent='';}}
 function updateSelectedCalibrationButton(){
   $('calibration-selected').disabled=busy||!calibrationStateKnown||calibrationActive||!selectedId;
   $('calibration-selected').title=selectedId?`Calibrate ${profile?.layout.find(k=>k.id===selectedId)?.label||selectedId}`:'Select a switch first';
@@ -389,7 +389,7 @@ async function calibrationCommand(command){
     if(!reply.ok)throw new Error(reply.error);
     setCalibrationActive(command===1);
     if(command===1){
-      $('calibration-status').textContent='Calibration started. Saved ranges update every second. Press switches in any order, then choose Finish.';if(typeof startCalibrationPoll==='function')startCalibrationPoll();
+      $('calibration-status').textContent='Calibration started. Saved ranges and changes update live. Press switches in any order, then choose Finish.';if(typeof startCalibrationPoll==='function')startCalibrationPoll();
     }else{
       if(typeof stopCalibrationPoll==='function')stopCalibrationPoll();
       await new Promise(r=>setTimeout(r,1500));
@@ -414,18 +414,23 @@ $('calibration-cancel').onclick=()=>calibrationCommand(3);
 async function refreshCalibration(silent=false){
     const reply=await window.keyboard.readCalibration();if(!reply.ok)throw new Error(reply.error);
     const data=reply.result;
+    const changedMap=new Map((data.comparison?.changedKeys||[]).map(change=>[change.id,change]));
     const fragment=document.createDocumentFragment();
     for(const physical of data.layout){
       const record=data.records[physical.row*14+physical.col];
+      const change=changedMap.get(physical.id);
       const key=document.createElement('button');key.type='button';key.className='calibration-key';key.dataset.id=physical.id;key.dataset.state=record.rangeStatus;
       if(physical.id===selectedId)key.classList.add('chosen');
+      if(change)key.classList.add('changed');
       key.style.left=`${3+physical.x/680*94}%`;key.style.top=`${18+physical.y*1.65}px`;key.style.width=`${physical.width/680*94}%`;
       for(const value of [physical.label||'Space',record.rangeStatus==='ok'?'OK':record.rangeStatus,`${record.min} / ${record.max}`]){const label=document.createElement('span');label.textContent=value;key.appendChild(label);}
-      key.title=`${physical.label}: sensor min ${record.min}, max ${record.max}, model ${record.model}. Tap to select for single-switch calibration.`;
+      key.title=`${physical.label}: sensor min ${record.min}, max ${record.max}, model ${record.model}.${change?` Live change from ${change.before.min} / ${change.before.max}.`:''} Tap to select for single-switch calibration.`;
       key.onclick=()=>selectCalibrationKey(physical.id);
       fragment.appendChild(key);
     }
     $('calibration-map').replaceChildren(fragment);
+    const live=$('calibration-live');
+    if(live&&calibrationActive){const count=changedMap.size;live.textContent=count?`LIVE · ${count} switch${count===1?'':'es'} changed since start`:'LIVE · press switches to see values change';}
     const summary=Object.entries(data.statusSummary||{}).map(([name,count])=>`${name}: ${count}`).join(' ? ');
     if(!silent)$('calibration-status').textContent=`Read ${data.layout.length} switches${summary?` ? ${summary}`:''}. Backup: ${data.backup}`;
     if(data.comparison){
