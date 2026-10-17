@@ -163,6 +163,5 @@ body[data-page=programming] .key[data-assignment-kind=fn]:after,body[data-page=p
 .programming-group-panel[data-group=DKS] .programming-slot-grid{margin-top:12px}
 .programming-group-panel[data-group=DKS] .programming-card>.actions{padding-bottom:0}
 
-#settings-panel{max-width:1120px;margin-left:auto;margin-right:auto}
-#settings-panel .performance-card{max-width:760px}
-#settings-panel .device-options-grid{max-width:1000px}
+#settings-panel{max-width:1048px;margin-left:0;margin-right:0}
+#settings-panel .performance-card,#settings-panel .device-options-grid,#settings-panel .device-data{max-width:1000px}
