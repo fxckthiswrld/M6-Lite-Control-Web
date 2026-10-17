@@ -633,6 +633,7 @@ async function recoverConnection(){
 }
 async function autoConnectAtStartup(){
   if(startupConnectInFlight||deviceWasConnected||busy)return;
+  if(!navigator.hid){const status=document.querySelector('.online');if(status)status.textContent='Your browser is not supported.';return;}
   startupConnectInFlight=true;
   const status=document.querySelector('.online');
   if(status)status.textContent='Looking for a paired keyboard...';
@@ -643,9 +644,9 @@ async function autoConnectAtStartup(){
       else if(/No paired M6 Lite\+ keyboard/.test(reply.error||''))break;
       if(attempt<59)await new Promise(resolve=>setTimeout(resolve,500));
     }
-    if(status)status.textContent='Not connected - click Connect keyboard to pair the device.';
+    if(status)status.textContent='Keyboard not connected.';
   }catch(error){
-    if(status)status.textContent='Not connected - click Connect keyboard to pair the device.';
+    if(status)status.textContent='Keyboard not connected.';
   }finally{startupConnectInFlight=false;}
 }
 window.m6UI={refresh:()=>loadProfile(layer)};
@@ -664,8 +665,9 @@ window.addEventListener('m6-device-status',event=>{
 setInterval(()=>{
   if(deviceWasConnected&&connectionRecoveryNeeded&&!recoveryInFlight&&!recoveryTimer)scheduleConnectionRecovery(250);
 },1000);
-$('read').onclick=()=>loadProfile();
-$('save-memory').onclick=async()=>{if(busy)return;setBusy(true);$('status').textContent='Saving to device memory...';try{const reply=await window.keyboard.saveToDeviceMemory();if(!reply.ok)throw new Error(reply.error);$('status').textContent='Save command acknowledged. Power-cycle verification is still required.';}catch(e){$('status').textContent=e.message;}finally{setBusy(false);}};
+function setDeviceDataStatus(message){const status=document.getElementById('device-data-status');if(status)status.textContent=message;}
+$('read').onclick=()=>{setDeviceDataStatus('Reading keyboard configuration...');loadProfile();};
+$('save-memory').onclick=async()=>{if(busy)return;setBusy(true);const message='Saving to device memory...';$('status').textContent=message;setDeviceDataStatus(message);try{const reply=await window.keyboard.saveToDeviceMemory();if(!reply.ok)throw new Error(reply.error);const done='Save command acknowledged. Power-cycle verification is still required.';$('status').textContent=done;setDeviceDataStatus(done);}catch(e){$('status').textContent=e.message;setDeviceDataStatus(e.message);}finally{setBusy(false);}};
 async function saveChanges(all=false) {
   if(busy||!profile)return;
   const request={id:selectedId,ids:[...selectedIds],layer,rtOn:$('rt').checked};

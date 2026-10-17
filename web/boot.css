@@ -1,0 +1,50 @@
+body.boot-locked{overflow:hidden}
+body.boot-locked>aside,body.boot-locked>main,body.boot-locked #app-shell{visibility:hidden!important}
+header .header-actions{display:none!important}
+.boot-screen{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;padding:clamp(18px,5vw,48px);overflow:auto;background:radial-gradient(circle at 50% 0,#1d2938 0,#0b0e14 52%,#07090d 100%);opacity:1;transition:opacity .2s ease}
+.boot-screen--hidden{opacity:0;pointer-events:none}
+.boot-card{width:min(560px,100%);min-width:0;padding:clamp(26px,5vw,46px);border:1px solid #2a2d33;border-radius:26px;background:linear-gradient(160deg,#17181c,#101114 70%);box-shadow:0 30px 80px #0009,inset 0 1px 0 #ffffff08;text-align:center}
+.boot-brand{display:flex;align-items:center;justify-content:center;gap:14px;margin-bottom:clamp(20px,4vw,32px);text-align:left}
+.boot-brand img{width:46px;height:46px;border-radius:12px;flex:none}
+.boot-brand-name{font-size:25px;font-weight:800;letter-spacing:-1px;line-height:1.05;color:#f5f5f6}
+.boot-brand-name span{color:#4eafff}
+.boot-brand-name small{display:block;margin-top:5px;font-size:9px;font-weight:700;letter-spacing:2px;color:#8e919c}
+.boot-title{margin:0 0 14px;font-size:clamp(27px,5.6vw,40px);line-height:1.08;font-weight:750;letter-spacing:-1.2px;color:#f7f7f8}
+.boot-text{margin:0 auto 14px;max-width:440px;font-size:15px;line-height:1.65;color:#b9bcc6}
+.boot-note{margin:0 auto 8px;max-width:440px;font-size:12px;line-height:1.55;color:#8e919c}
+.boot-note--small{margin:14px auto 0;font-size:11px;color:#777b86}
+.boot-status{min-height:20px;margin:20px 0 14px;font-size:13px;line-height:1.4;color:#9ca0ab}
+.boot-status[data-tone=pending]{color:#8fc4ff}
+.boot-status[data-tone=ok]{color:#55d69a}
+.boot-status[data-tone=error]{color:#ff8f9b}
+.boot-button{display:inline-flex;align-items:center;justify-content:center;width:100%;max-width:360px;min-height:50px;padding:14px 24px;border:0;border-radius:14px;background:linear-gradient(180deg,#1e9bff,#0878e6);color:#fff;font:inherit;font-size:15px;font-weight:700;cursor:pointer;box-shadow:0 10px 28px #0878e655,inset 0 1px 0 #ffffff33;transition:transform .15s ease,box-shadow .15s ease,filter .15s ease}
+.boot-button:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 14px 32px #0878e666,inset 0 1px 0 #ffffff33;filter:brightness(1.06)}
+.boot-button:active:not(:disabled){transform:translateY(0)}
+.boot-button:disabled{opacity:.6;cursor:wait;transform:none;box-shadow:none}
+.boot-button:focus-visible{outline:2px solid #8fc4ff;outline-offset:3px}
+.boot-badges{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin-top:24px}
+.boot-badges span{padding:8px 14px;border:1px solid #34373e;border-radius:999px;background:#1d1f24;color:#c9ccd4;font-size:12px;font-weight:600}
+@media(max-width:640px){
+ .boot-screen{padding:16px;align-items:start}
+ .boot-card{margin:0;padding:28px 20px 24px;border-radius:20px}
+ .boot-brand{gap:11px;margin-bottom:22px}
+ .boot-brand img{width:38px;height:38px}
+ .boot-brand-name{font-size:21px}
+ .boot-title{font-size:clamp(25px,8vw,32px);letter-spacing:-.8px}
+ .boot-text{font-size:14px;line-height:1.6}
+ .boot-status{margin:18px 0 12px}
+ .boot-button{max-width:none;min-height:48px;font-size:14px}
+ .boot-badges{margin-top:20px}
+}
+@media(max-height:520px){
+ .boot-screen{align-items:start}
+ .boot-card{padding:22px}
+ .boot-brand{margin-bottom:16px}
+ .boot-title{margin-bottom:10px}
+}
+.device-data{margin:18px 0 24px;padding:18px;border:1px solid #303034;border-radius:16px;background:#202124}
+.device-data h3{margin:0 0 8px;font-size:16px;color:#f0f0f2}
+.device-data p{margin:0 0 14px;color:#a1a1aa;font-size:13px;line-height:1.5}
+.device-data .actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.device-data-actions button{margin:0}
+#device-data-status{min-height:18px;margin:12px 0 0;font-size:12px;line-height:1.4;color:#55d69a}

@@ -40,6 +40,14 @@ function renderProgrammingIconPicker(select){
 const programmingSourceIds=new Set(['remap-source','modify-source','media-source','layer-source','dks-source','hotkey-source','pair-first','pair-second','modify-target']);
 for(const select of programmingLayout.querySelectorAll('select'))if(!programmingSourceIds.has(select.id))renderProgrammingIconPicker(select);
 const settingsFooter=document.createElement('div');settingsFooter.id='settings-footer';settingsPanel.append(settingsFooter);
+const deviceData=document.createElement('section');deviceData.id='device-data';deviceData.className='device-data';
+const deviceDataHeading=document.createElement('h3');deviceDataHeading.textContent='Device data';
+const deviceDataText=document.createElement('p');deviceDataText.textContent='Read the current configuration from the keyboard or save applied settings to device memory.';
+const deviceDataActions=document.createElement('div');deviceDataActions.className='actions device-data-actions';
+const deviceDataStatus=document.createElement('p');deviceDataStatus.id='device-data-status';deviceDataStatus.setAttribute('role','status');deviceDataStatus.setAttribute('aria-live','polite');
+for(const id of ['read','save-memory']){const button=document.getElementById(id);if(button)deviceDataActions.append(button);}
+deviceData.append(deviceDataHeading,deviceDataText,deviceDataActions,deviceDataStatus);
+settingsPanel.insertBefore(deviceData,settingsPanel.children[1]||null);
 const lightingGroups={back:[],under:[],single:[]};const lightingWrappers={};let lightGroup='back';
 for(const node of [...lightingPanel.children]){if(node.tagName==='H2'&&node.textContent==='Under Light')lightGroup='under';if(node.tagName==='H2'&&node.textContent==='Single Light')lightGroup='single';lightingGroups[lightGroup].push(node);}
 for(const [name,nodes] of Object.entries(lightingGroups)){const wrapper=document.createElement('section');wrapper.className=`lighting-layer-card lighting-${name}-card`;wrapper.dataset.lightingLayer=name;nodes.forEach(node=>wrapper.append(node));lightingPanel.append(wrapper);lightingWrappers[name]=wrapper;}
