@@ -1,6 +1,6 @@
 'use strict';
 // Browser transport: all device calls stay in the page and use WebHID.
-const adapterReady=import('./browser-backend.js?v=20261017-33').then(m=>new (m.BrowserAdapter||m.default.BrowserAdapter)());
+const adapterReady=import('./browser-backend.js?v=20261017-34').then(m=>new (m.BrowserAdapter||m.default.BrowserAdapter)());
 const unsupported=name=>({ok:false,error:`${name} is not available in this browser build yet.`});
 async function invoke(name,args=[]){try{const adapter=await adapterReady;if(typeof adapter[name]!=='function')return unsupported(name);return {ok:true,result:await adapter[name](...args)};}catch(error){return {ok:false,error:error.message};}}
 async function exportHe(layer){const reply=await invoke('exportHe',[layer]);if(!reply.ok)return reply;const blob=new Blob([JSON.stringify(reply.result,null,2)+'\n'],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`M6-Lite-HE-M${layer+1}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),0);return {ok:true,result:{exported:true,document:reply.result}};}
