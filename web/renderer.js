@@ -710,8 +710,9 @@ function showPairState(){
   const names={0:'Standard',2:'Media',3:'FN/layer',4:'DKS',5:'Snap Tap',6:'SOCD / AD Cancel'};
   $('pair-current').textContent=['pair-first','pair-second'].map(id=>{
     const physical=profile.layout.find(k=>k.id===$(id).value);
+    if(!physical)return 'Select a switch';
     const key=programming.keys.find(k=>k.row===physical.row&&k.col===physical.col);
-    return `${physical.label}: ${names[key.mode]||'Other mode'}${key.locked?' (key disabled)':''}`;
+    return key?`${physical.label}: ${names[key.mode]||'Other mode'}${key.locked?' (key disabled)':''}`:`${physical.label}: Unreadable`;
   }).join(' · ');
 }
 function showDksState(){

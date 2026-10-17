@@ -213,7 +213,7 @@ lightingTab('back');
 programmingTabs.hidden=true;programmingTab('Remap');
 
 function syncProgrammingSelection(){
- if(!profile||!programming)return;
+ if(!profile||!programming||!selectedId)return;
  for(const id of ['remap-source','modify-source','media-source','layer-source','dks-source','hotkey-source','pair-first']){
   const select=$(id);select.value=selectedId;select.dispatchEvent(new Event('change'));
  }
