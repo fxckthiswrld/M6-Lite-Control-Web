@@ -409,8 +409,8 @@ async function calibrationCommand(command){
     }else if(command===2){
       if(typeof stopCalibrationPoll==='function')stopCalibrationPoll();
       setCalibrationActive(false);
-      $('calibration-status').textContent='Finish command sent. Keyboard is restarting; reloading in 6 seconds...';
-      setTimeout(()=>window.location.reload(),6000);
+      $('calibration-status').textContent='Finish command sent. Keyboard is restarting; reloading in 8 seconds...';
+      setTimeout(()=>window.location.reload(),8000);
     }else{
       if(typeof stopCalibrationPoll==='function')stopCalibrationPoll();
       await new Promise(r=>setTimeout(r,1500));
@@ -463,7 +463,8 @@ async function refreshCalibration(silent=false,generation){
     if(calibrationActive){
       if(!calibrationLiveBaseline)calibrationLiveBaseline=new Map();
       for(const physical of data.layout){
-        const {record}=displayRecord(physical);if(!record)continue;
+        const {stored,liveRecord,record}=displayRecord(physical);if(!record)continue;
+        if(liveRecord&&(liveRecord.min!==stored.min||liveRecord.max!==stored.max)){changedIds.add(physical.id);if(!changeInfo.has(physical.id))changeInfo.set(physical.id,stored);}
         const previous=calibrationLiveBaseline.get(physical.id);
         if(!previous)calibrationLiveBaseline.set(physical.id,{min:record.min,max:record.max});
         else if(previous.min!==record.min||previous.max!==record.max){changedIds.add(physical.id);changeInfo.set(physical.id,previous);}
