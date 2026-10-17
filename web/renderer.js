@@ -599,13 +599,9 @@ $('keyboard').after(keyStateSummary);
 function programmingBadge(assignment){
  if(!assignment)return null;
  const labelFor=id=>profile?.layout.find(k=>k.id===id)?.label||id;
- if(assignment.mode===5&&assignment.snap?.row){const id=`${assignment.snap.row-1}:${assignment.snap.col}`;return {text:`SNAP→${labelFor(id)}`,kind:'snap'};}
- if(assignment.mode===6&&assignment.cancel?.row){const id=`${assignment.cancel.row-1}:${assignment.cancel.col}`;return {text:`SOCD→${labelFor(id)}`,kind:'snap'};}
- if(assignment.mode===4){
-  if(assignment.dks?.type===1)return {text:'DKS·MOUSE',kind:'dks'};
-  if(assignment.dks?.row){const id=`${assignment.dks.row-1}:${assignment.dks.col}`;return {text:`DKS→${labelFor(id)}`,kind:'dks'};}
-  return {text:'DKS',kind:'dks'};
- }
+ if(assignment.mode===5)return {text:'SNAP',kind:'snap'};
+ if(assignment.mode===6)return {text:'SOCD',kind:'snap'};
+ if(assignment.mode===4)return {text:assignment.dks?.type===1?'DKS·MOUSE':'DKS',kind:'dks'};
  if(assignment.mode===3)return {text:[0,1,2].includes(assignment.layer?.layer)?`FN${assignment.layer.layer+1}`:'FN',kind:'fn'};
  if(assignment.mode===2)return {text:'MEDIA',kind:'media'};
  if(assignment.mode===0&&assignment.modify?.type===0&&assignment.modify.row>=1&&(assignment.modify.row!==assignment.row+1||assignment.modify.col!==assignment.col)){

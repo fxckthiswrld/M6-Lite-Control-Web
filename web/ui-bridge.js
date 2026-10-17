@@ -31,12 +31,44 @@ for(const [name,nodes] of Object.entries(programmingGroups)){
  if(name==='Off / Enable key'){
   const offCard=document.createElement('section');offCard.className='programming-off-card';offCard.dataset.programmingGroup=name;
   const offHeading=document.createElement('h3');offHeading.textContent='Off / Enable key';offCard.append(offHeading);
-  for(const node of nodes){if(node.tagName==='H2'){node.remove();continue;}node.hidden=false;offCard.append(node);}
-  programmingSide.append(offCard);
-  continue;
- }
- const card=document.createElement('details');card.className='programming-card';card.dataset.programmingGroup=name;const summary=document.createElement('summary');summary.textContent=name==='Layer assignment'?'FN / Layer assignment':name==='Snap Tap / SOCD'?'Snap Tap / SOCD':name;card.append(summary);for(const node of nodes){if(node.tagName==='H2')node.hidden=true;node.hidden=false;card.append(node);}programmingAccordion.append(card);programmingCards[name]=card;
+   for(const node of nodes){if(node.tagName==='H2'){node.remove();continue;}node.hidden=false;offCard.append(node);}
+   programmingAccordion.prepend(offCard);
+   continue;
+  }
+  const card=document.createElement('details');card.className='programming-card';card.dataset.programmingGroup=name;const summary=document.createElement('summary');summary.textContent=name==='Layer assignment'?'FN / Layer assignment':name==='Snap Tap / SOCD'?'Snap Tap / SOCD':name;card.append(summary);for(const node of nodes){if(node.tagName==='H2')node.hidden=true;node.hidden=false;card.append(node);}programmingAccordion.append(card);programmingCards[name]=card;
 }
+for(const name of ['Remap','Layer assignment','Media','HotKey','DKS','Snap Tap / SOCD']){const card=programmingCards[name];if(card)programmingAccordion.append(card);}
+function programmingKeyLabel(id){return profile?.layout.find(key=>key.id===id)?.label||id;}
+function syncProgrammingSlots(){
+ const source=$('dks-source')?.value,target=$('dks-target')?.value;
+ if($('dks-source-box')){$('dks-source-box').textContent=source?programmingKeyLabel(source):'Assign';$('dks-source-box').parentElement.classList.toggle('assigned',!!source);}
+ if($('dks-target-box')){const text=target?(target.startsWith('mouse:')?target.slice(6):programmingKeyLabel(target)):'Assign';$('dks-target-box').textContent=text;$('dks-target-box').parentElement.classList.toggle('assigned',!!target);}
+ const first=$('pair-first')?.value,second=$('pair-second')?.value;
+ if($('pair-first-box')){$('pair-first-box').textContent=first?programmingKeyLabel(first):'Assign';$('pair-first-box').parentElement.classList.toggle('assigned',!!first);}
+ if($('pair-second-box')){$('pair-second-box').textContent=second?programmingKeyLabel(second):'Assign';$('pair-second-box').parentElement.classList.toggle('assigned',!!second);}
+ const mode=$('pair-mode')?.value;for(const button of document.querySelectorAll('[data-pair-mode]'))button.setAttribute('aria-pressed',String(button.dataset.pairMode===mode));
+}
+function renderProgrammingSlots(){
+ const dksCard=programmingCards['DKS'],snapCard=programmingCards['Snap Tap / SOCD'];
+ if(dksCard&&!dksCard.querySelector('.programming-slot-grid')){
+  const controls=dksCard.querySelector('.controls');
+  controls.insertAdjacentHTML('beforebegin','<div class="programming-slot-grid"><button type="button" class="programming-slot" data-dks-slot="source"><span>Key 1</span><b id="dks-source-box">Assign</b></button><button type="button" class="programming-slot" data-dks-slot="target"><span>Key 2</span><b id="dks-target-box">Assign</b></button></div><div class="programming-preset-row"><span>Preset bindings</span>'+['W','A','S','D'].map(label=>'<button type="button" data-dks-preset="'+label+'">'+label+'</button>').join('')+'</div>');
+  for(const slot of dksCard.querySelectorAll('[data-dks-slot]'))slot.onclick=()=>{if(!selectedId)return;const select=$('dks-'+slot.dataset.dksSlot);select.value=selectedId;select.dispatchEvent(new Event('change'));syncProgrammingSlots();};
+  for(const button of dksCard.querySelectorAll('[data-dks-preset]'))button.onclick=()=>{const key=profile?.layout.find(item=>(item.label||'').toUpperCase()===button.dataset.dksPreset);if(!key)return;$('dks-source').value=key.id;$('dks-source').dispatchEvent(new Event('change'));syncProgrammingSlots();};
+ }
+ if(snapCard&&!snapCard.querySelector('.programming-slot-grid')){
+  const controls=snapCard.querySelector('.controls');
+  controls.insertAdjacentHTML('beforebegin','<div class="programming-slot-grid"><button type="button" class="programming-slot" data-pair-slot="first"><span>Key 1</span><b id="pair-first-box">Assign</b></button><button type="button" class="programming-slot" data-pair-slot="second"><span>Key 2</span><b id="pair-second-box">Assign</b></button></div><div class="programming-mode-row"><button type="button" data-pair-mode="5">Snap Tap</button><button type="button" data-pair-mode="6">SOCD / AD Cancel</button></div>');
+  $('pair-mode').closest('label').style.setProperty('display','none');
+  $('pair-second').closest('label').style.setProperty('display','none');
+  for(const slot of snapCard.querySelectorAll('[data-pair-slot]'))slot.onclick=()=>{if(!selectedId)return;const select=$('pair-'+slot.dataset.pairSlot);select.value=selectedId;select.dispatchEvent(new Event('change'));syncProgrammingSlots();};
+  for(const button of snapCard.querySelectorAll('[data-pair-mode]'))button.onclick=()=>{$('pair-mode').value=button.dataset.pairMode;syncProgrammingSlots();};
+ }
+ for(const id of ['dks-source','dks-target','pair-first','pair-second','pair-mode'])$(id)?.addEventListener('change',syncProgrammingSlots);
+ for(const id of ['dks-apply','dks-disable','pair-apply','pair-disable'])$(id)?.addEventListener('click',()=>setTimeout(syncProgrammingSlots,50));
+ syncProgrammingSlots();
+}
+renderProgrammingSlots();
 function programmingIconLabel(text){const value=String(text||'').trim();if(value.length<=3)return value;const abbreviations={'Backspace':'BACK','Print Screen':'PRT SC','Scroll Lock':'SLK','Pause':'PAUSE','Insert':'INS','Delete':'DEL','Home':'HOME','End':'END','Page Up':'PG UP','Page Down':'PG DN','Num Lock':'NUM','Num /':'NUM /','Num *':'NUM *','Num -':'NUM -','Num +':'NUM +','Num 7':'NUM 7','Num 8':'NUM 8','Num 9':'NUM 9','Num 4':'NUM 4','Num 5':'NUM 5','Num 6':'NUM 6','Num 1':'NUM 1','Num 2':'NUM 2','Num 3':'NUM 3','Num 0':'NUM 0','Num .':'NUM .','Num Enter':'NUM ENT','Caps Lock':'CAPS','Left Shift':'L-SH','Right Shift':'R-SH','Left Ctrl':'L-CTRL','Right Ctrl':'R-CTRL','Left Alt':'L-ALT','Right Alt':'R-ALT','Left Win':'L-WIN','Right Win':'R-WIN','Left Arrow':'←','Down Arrow':'↓','Up Arrow':'↑','Right Arrow':'→'};if(abbreviations[value])return abbreviations[value];const icons=[['media','♫'],['mouse','🖱'],['wheel','↕'],['snap','⇄'],['socd','⇄'],['dks','⌘'],['fn','Fn'],['layer','▱'],['reset','↺'],['disable','⏻'],['standard','⌨'],['keyboard','⌨'],['hotkey','⟳']];const match=icons.find(([word])=>value.toLowerCase().includes(word));return match?.[1]||value.slice(0,6).toUpperCase();}
 const fullSizeKeyboardKeys=['Esc','F1','F2','F3','F4','F5','F6','F7','F8','F9','F10','F11','F12','Print Screen','Scroll Lock','Pause','1','2','3','4','5','6','7','8','9','0','-','=', 'Backspace','Insert','Home','Page Up','Num Lock','Num /','Num *','Num -','Tab','Q','W','E','R','T','Y','U','I','O','P','[',']','\\','Delete','End','Page Down','Num 7','Num 8','Num 9','Num +','Caps Lock','A','S','D','F','G','H','J','K','L',';','\'','Enter','Num 4','Num 5','Num 6','Left Shift','Z','X','C','V','B','N','M',',','.','/','Right Shift','Num 1','Num 2','Num 3','Num Enter','Left Ctrl','Left Win','Left Alt','Space','Right Alt','Right Win','Menu','Right Ctrl','Left Arrow','Down Arrow','Up Arrow','Right Arrow','Num 0','Num .'];
 function renderProgrammingIconPicker(select){
@@ -47,7 +79,7 @@ function renderProgrammingIconPicker(select){
  const refresh=()=>{picker.replaceChildren();if(select.id==='remap-target'){const physical=[...select.options];for(const [title,options] of [['Basic Characters',physical.filter(option=>isBasic(option.textContent))],['Extended Characters',physical.filter(option=>!isBasic(option.textContent))]]){const section=document.createElement('section');section.className='programming-icon-section';const heading=document.createElement('h4');heading.textContent=title;section.append(heading);const grid=document.createElement('div');grid.className='programming-icon-grid';options.forEach(option=>addButton(option,grid));section.append(grid);picker.append(section);}}else{const grid=document.createElement('div');grid.className='programming-icon-grid';[...select.options].forEach(option=>addButton(option,grid));picker.append(grid);}};
  select.dataset.iconPicker='true';select.classList.add('programming-icon-select');select.after(picker);select.addEventListener('change',refresh);new MutationObserver(refresh).observe(select,{childList:true});refresh();
 }
-const programmingSourceIds=new Set(['remap-source','modify-source','media-source','layer-source','dks-source','hotkey-source','pair-first','pair-second','modify-target']);
+const programmingSourceIds=new Set(['remap-source','modify-source','media-source','layer-source','dks-source','dks-target','hotkey-source','pair-first','pair-second','modify-target']);
 for(const select of programmingLayout.querySelectorAll('select'))if(!programmingSourceIds.has(select.id))renderProgrammingIconPicker(select);
 const settingsFooter=document.createElement('div');settingsFooter.id='settings-footer';settingsPanel.append(settingsFooter);
 const deviceData=document.createElement('section');deviceData.id='device-data';deviceData.className='device-data';
@@ -224,10 +256,13 @@ lightingTab('back');
 programmingTabs.hidden=true;programmingTab('Remap');
 
 function syncProgrammingSelection(){
- if(!profile||!programming||!selectedId)return;
+ if(!profile||!programming)return;
+ syncProgrammingSlots();
+ if(!selectedId)return;
  for(const id of ['remap-source','modify-source','media-source','layer-source','dks-source','hotkey-source','pair-first']){
   const select=$(id);select.value=selectedId;select.dispatchEvent(new Event('change'));
  }
+ syncProgrammingSlots();
 }
 $('select-multiple').hidden=true;
 selectionBar.querySelector('p').textContent='Click keys to add or remove them from the selection. Drag across keys to select a group. Apply changes only the selected switches.';
