@@ -184,3 +184,56 @@ test('performance mode reports a pending restart so the page can reload', async 
   assert.equal(result.reconnectPending, true);
   assert.equal(reconnectCalled, false);
 });
+
+function singleFixture() {
+  const sections = new Map([1, 2, 4, 24, 25, 26, 6, 7, 9, 17].map(kind => [kind, Buffer.alloc(kind === 7 ? 840 : kind === 6 ? 228 : 24)]));
+  const record = sections.get(7);
+  for (let index = 0; index < 84; index++) { record[index * 10 + 1] = 1; record.fill(37, index * 10 + 6, index * 10 + 10); }
+  const writes = [];
+  const device = {
+    readInit(kind) { return Buffer.from(sections.get(kind)); },
+    send(payload) {
+      writes.push(Buffer.from(payload));
+      if (payload[1] === 17) payload.copy(sections.get(17), 0, 2, 20);
+      else if (payload[1] === 8 && payload[2] === 1) payload.copy(record, (payload[3] * 6 + payload[4]) * 10, 5, 11);
+    }
+  };
+  return { sections, device, writes };
+}
+
+test('Single Light brightness writes preserve each selected RGB and override flag', async () => {
+  const { sections, device, writes } = singleFixture();
+  sections.get(7).set([1, 1, 57, 12, 34, 56], 80);
+  sections.get(7).set([0, 1, 193, 87, 65, 43], 140);
+  const before = Buffer.from(sections.get(7));
+  const adapter = new BrowserAdapter();
+  adapter.device = device;
+  const result = await adapter.setSingleLight({ keys: ['2:1', '2:2'], brightness: 128 });
+  const expected = Buffer.from(before); expected[82] = 128; expected[142] = 128;
+  assert.deepEqual(sections.get(7), expected);
+  assert.equal(writes.length, 2);
+  assert.equal(result.keys.find(key => key.id === '2:1').brightness, 128);
+});
+
+test('Single Light color-only and enable-only writes preserve stored brightness', async () => {
+  const { sections, device } = singleFixture();
+  sections.get(7).set([1, 1, 73, 12, 34, 56], 80);
+  const adapter = new BrowserAdapter();
+  adapter.device = device;
+  await adapter.setSingleLight({ keys: ['2:1'], color: '#112233' });
+  assert.deepEqual([...sections.get(7).subarray(83, 86)], [17, 34, 51]);
+  assert.equal(sections.get(7)[82], 73);
+  await adapter.setSingleLight({ keys: ['2:1'], enabled: false });
+  assert.equal(sections.get(7)[80], 0);
+  assert.equal(sections.get(7)[82], 73);
+});
+
+test('Single Light rejects effect requests and invalid brightness before writing', async () => {
+  const { device, writes } = singleFixture();
+  const adapter = new BrowserAdapter();
+  adapter.device = device;
+  await assert.rejects(() => adapter.setSingleLight({ keys: ['2:1'], mode: 2 }), /RGB and brightness editing only/);
+  await assert.rejects(() => adapter.setSingleLight({ keys: ['2:1'], brightness: 256 }), /Brightness/);
+  await assert.rejects(() => adapter.setSingleLight({ keys: ['2:1'] }), /Expected RGB/);
+  assert.equal(writes.length, 0);
+});

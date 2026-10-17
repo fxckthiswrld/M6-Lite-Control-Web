@@ -59,11 +59,12 @@ lightingPanel.insertAdjacentHTML('beforeend','<div class="lighting-section"><h3>
 lightingPanel.insertAdjacentHTML('beforeend','<h3>Under Light power</h3><label><input id="underlight-enabled" type="checkbox" disabled> Enable Under Light</label><button id="underlight-enabled-apply" disabled>Apply Under Light power</button>');
 lightingPanel.insertAdjacentHTML('beforeend','<h3>Under Light synchronization</h3><label><input id="underlight-sync" type="checkbox" disabled> Normal Sync</label><button id="underlight-sync-apply" disabled>Apply Normal Sync</button><p id="underlight-sync-note">Disable Normal Sync to edit independent Under Light effects.</p>');
 lightingPanel.insertAdjacentHTML('beforeend','<hr><h2>Single Light</h2><label><input id="single-active" type="checkbox" disabled> Enable Single Light layer</label><button id="single-active-apply" disabled>Apply layer</button><div class="controls"><label>Keys (Ctrl or Shift for a group)<select id="single-keys" multiple size="8" disabled></select></label><label><input id="single-enabled" type="checkbox" disabled> Override Back Light for selected keys</label><label>Color<input id="single-color" type="color" disabled></label></div><button id="single-read">Refresh Single Light</button><button id="single-apply" disabled>Apply to selected keys</button><p id="single-status" role="status">Read Single Light from the keyboard.</p><p>Colors override Back Light only for enabled keys while this layer is enabled. Use Save to device memory to store applied settings.</p>');
-let singleState=null,singleReady=false;
+$('single-apply').insertAdjacentHTML('afterend','<div class="lighting-section"><h3>Selected keys brightness</h3><label class="range-control"><input id="single-brightness" type="range" min="0" max="100" step="1" disabled><output id="single-brightness-value">—</output></label><button id="single-brightness-apply" disabled>Apply brightness to selected keys</button><p>Brightness preserves each selected key’s RGB color. Applying a color preserves its brightness.</p></div>');
+let singleState=null,singleReady=false,singleBrightnessRaw=0;
 function showSingleSelection(){
  const ids=Array.from($('single-keys').selectedOptions,o=>o.value),keys=singleState?.keys.filter(k=>ids.includes(k.id))||[];
- if(keys.length){$('single-color').value=keys[0].color;$('single-enabled').checked=keys[0].enabled;}
- $('single-status').textContent=keys.length?`${keys.length} key(s) selected. ${keys.some(k=>k.color!==keys[0].color||k.enabled!==keys[0].enabled)?'Mixed values; applying replaces values for this group.':'Saved values shown.'}`:'Select one or more keys.';
+ if(keys.length){$('single-color').value=keys[0].color;$('single-enabled').checked=keys[0].enabled;singleBrightnessRaw=keys[0].brightness;$('single-brightness').value=Math.round(singleBrightnessRaw*100/255);updateLightingSlider('single-brightness','single-brightness-value');}
+ $('single-status').textContent=keys.length?`${keys.length} key(s) selected. ${keys.some(k=>k.color!==keys[0].color||k.enabled!==keys[0].enabled||k.brightness!==keys[0].brightness)?'Mixed values; each Apply changes only its displayed setting.':'Saved values shown.'}`:'Select one or more keys.';
  updateLightingControls();
 }
 async function readSingleLight(){
@@ -75,12 +76,15 @@ async function readSingleLight(){
 }
 async function singleAction(kind){
  if(busy||(kind!=='read'&&!singleReady))return;
- const request=kind==='layer'?{active:$('single-active').checked}:{keys:Array.from($('single-keys').selectedOptions,o=>o.value),enabled:$('single-enabled').checked,color:$('single-color').value};
+ const keys=Array.from($('single-keys').selectedOptions,o=>o.value);
+ const request=kind==='layer'?{active:$('single-active').checked}:kind==='brightness'?{keys,brightness:singleBrightnessRaw}:{keys,enabled:$('single-enabled').checked,color:$('single-color').value};
  setBusy(true);
  try{if(kind!=='read'){const reply=await window.keyboard.setSingleLight(request);if(!reply.ok)throw Error(reply.error);}await readSingleLight();if(kind!=='read')$('single-status').textContent='Single Light applied; device readback verified. Use Save to device memory to store it.';}
  catch(error){singleReady=false;$('single-status').textContent=error.message;}finally{setBusy(false);}
 }
 $('single-keys').onchange=showSingleSelection;$('single-read').onclick=()=>singleAction('read');$('single-apply').onclick=()=>singleAction('keys');$('single-active-apply').onclick=()=>singleAction('layer');
+$('single-brightness').oninput=()=>{singleBrightnessRaw=Math.round($('single-brightness').valueAsNumber*255/100);updateLightingSlider('single-brightness','single-brightness-value');};
+$('single-brightness-apply').onclick=()=>singleAction('brightness');
 let lightingBrightnessReady=false,lightingModeReady=false,lightingState=null,lightingSavedBrightness=null,underLightState=null,underLightReady=false;
 function discardLightingDraft(){
  $('backlight-enabled').checked=!!lightingState?.enabled;
@@ -102,7 +106,7 @@ function updateLightingControls(){
  $('backlight-enabled').disabled=busy||!backPowerReady;$('backlight-enabled-apply').disabled=busy||!backPowerReady;
  const singleIds=Array.from($('single-keys').selectedOptions,o=>o.value),editable=singleReady&&singleIds.length>0&&singleIds.every(id=>singleState.keys.find(k=>k.id===id)?.canEdit);
  $('single-keys').disabled=busy||!singleReady;
- for(const id of ['single-apply','single-enabled','single-color'])$(id).disabled=busy||!editable;
+ for(const id of ['single-apply','single-enabled','single-color','single-brightness','single-brightness-apply'])$(id).disabled=busy||!editable;
  for(const id of ['single-active','single-active-apply'])$(id).disabled=busy||!singleReady||!singleState?.canEnable;
  const syncReady=underLightReady&&underLightState?.canEditSync;
  $('underlight-sync').disabled=busy||!syncReady;$('underlight-sync-apply').disabled=busy||!syncReady;
