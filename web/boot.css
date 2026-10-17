@@ -76,3 +76,6 @@ header .header-actions{display:none!important}
 .single-service-controls{display:none!important}
 body[data-page=lighting] .key.key-selected{background:#093e65;border-color:#008cff;box-shadow:0 0 0 1px #008cff}
 @media(max-width:900px){.lighting-single-content{grid-template-columns:1fr}}
+
+.panel>small{display:block;margin-bottom:14px}
+.panel .performance-card,.panel .device-data{margin-top:0}

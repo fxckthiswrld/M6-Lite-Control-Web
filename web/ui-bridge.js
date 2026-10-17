@@ -154,9 +154,20 @@ for(const [name,nodes] of Object.entries(lightingGroups)){const wrapper=document
   }
  }
 }
+let currentLightingTab=null;
+function clearKeyboardSelection(){
+ if(busy)return;
+ selectedId='';selectedIds=new Set();
+ if(typeof refreshSelection==='function')refreshSelection();
+ for(const key of $('keyboard').querySelectorAll('.key'))key.classList.remove('key-selected');
+ const select=$('single-keys');
+ if(select){let changed=false;for(const option of select.options)if(option.selected){option.selected=false;changed=true;}if(changed)select.dispatchEvent(new Event('change'));}
+ for(const id of ['selected','selected-release','selected-trigger']){const element=$(id);if(element)element.textContent='-';}
+}
 let uiPage='home';
 function navigateUI(page){
  if(busy)return false;
+ clearKeyboardSelection();
  discardLightingDraft();showSelected();
  fillRemap();fillLayer();fillMedia();fillModify();fillHotKey();showPairState();showDksState();
  for(const panel of [hePanel,advancedPanel,remapPanel,pendingPanel,calibrationPanel,lightingPanel,settingsPanel])panel.hidden=true;
@@ -168,14 +179,14 @@ function navigateUI(page){
  document.querySelector('.key-legend').hidden=page!=='range';lightingTabs.hidden=page!=='lighting';
  programmingTabs.hidden=page!=='programming';
  if(page==='range')hePanel.hidden=false;
- if(page==='programming'){selectedIds=new Set([selectedId]);refreshSelection();programmingTab(programmingView);}
+ if(page==='programming'){selectedIds=selectedId?new Set([selectedId]):new Set();refreshSelection();programmingTab(programmingView);}
  if(page==='lighting'){lightingPanel.hidden=false;lightingBrightness();syncSingleKeyHighlights();}
  if(page==='settings'){settingsPanel.hidden=false;deviceSettingsAction();}
  if(page==='calibration'){calibrationPanel.hidden=false;restoreCalibrationState();}
  window.dispatchEvent(new CustomEvent('m6-page',{detail:page}));window.scrollTo(0,0);return true;
 }
 function syncSingleKeyHighlights(){const select=$('single-keys');if(!select)return;const ids=new Set([...select.selectedOptions].map(option=>option.value));for(const key of $('keyboard').querySelectorAll('.key'))key.classList.toggle('key-selected',uiPage==='lighting'&&ids.has(key.dataset.id));}
-function lightingTab(tab){if(uiPage==='lighting'&&!busy)discardLightingDraft();for(const [name,nodes] of Object.entries(lightingGroups)){lightingWrappers[name].hidden=name!==tab;for(const node of nodes)node.hidden=false;}const active=lightingGroups[tab]?.[0];if(active){active.classList.remove('tab-enter');void active.offsetWidth;active.classList.add('tab-enter');}syncSingleKeyHighlights();}
+function lightingTab(tab){if(tab!==currentLightingTab)clearKeyboardSelection();currentLightingTab=tab;if(uiPage==='lighting'&&!busy)discardLightingDraft();for(const [name,nodes] of Object.entries(lightingGroups)){lightingWrappers[name].hidden=name!==tab;for(const node of nodes)node.hidden=false;}const active=lightingGroups[tab]?.[0];if(active){active.classList.remove('tab-enter');void active.offsetWidth;active.classList.add('tab-enter');}syncSingleKeyHighlights();}
 $('single-keys').addEventListener('change',syncSingleKeyHighlights);
 for(const panel of [remapPanel,advancedPanel])panel.querySelector('[data-action="programming-back"]').onclick=()=>navigateUI('home');
 // Keyboard selection also targets Programming and Single Light controls.
@@ -188,6 +199,11 @@ $('keyboard').addEventListener('click',event=>{
  select.dispatchEvent(new Event('change'));
  syncSingleKeyHighlights();
  }
+});
+document.addEventListener('pointerdown',event=>{
+ if(busy||event.button!==0)return;
+ if(event.target.closest('button,.key,input,select,textarea,label,a,[role=button],[role=tab]'))return;
+ clearKeyboardSelection();
 });
 window.m6UI={navigate:navigateUI,lightingTab,programmingTab,refresh:()=>{if(!busy){loadProfile();}},snapshot:()=>({busy,connected:!!profile,layer,selectedLabel:profile?.layout.find(k=>k.id===selectedId)?.label||'Select a key',page:uiPage,back:lightingState,under:underLightState,single:singleState,brightness:lightingSavedBrightness})};
 navigateUI('home');
