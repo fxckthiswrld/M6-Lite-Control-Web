@@ -142,6 +142,18 @@ if(performanceCard){
  while(sibling&&sibling.tagName==='P'&&sibling.id!=='device-settings-status'){modeBlock.push(sibling);sibling=sibling.nextElementSibling;}
  for(const node of modeBlock)settingsPanel.insertBefore(node,deviceData);
 }
+{
+ const settingsHeading=settingsPanel.querySelector('small'),settingsFooterNode=settingsPanel.querySelector('#settings-footer'),settingsOptions=settingsPanel.querySelector('.device-options-grid');
+ if(settingsOptions){
+  const settingsGrid=document.createElement('div');settingsGrid.className='settings-grid';
+  const settingsLeft=document.createElement('div');settingsLeft.className='settings-column';
+  const settingsRight=document.createElement('div');settingsRight.className='settings-column settings-column-right';
+  for(const node of [...settingsPanel.children])if(node!==settingsOptions&&node!==settingsHeading&&node!==settingsFooterNode)settingsLeft.append(node);
+  settingsRight.append(settingsOptions);
+  settingsGrid.append(settingsLeft,settingsRight);
+  settingsPanel.replaceChildren(...[settingsHeading,settingsGrid,settingsFooterNode].filter(Boolean));
+ }
+}
 const lightingGroups={back:[],under:[],single:[]};const lightingWrappers={};let lightGroup='back';
 for(const node of [...lightingPanel.children]){if(node.tagName==='H2'&&node.textContent==='Under Light')lightGroup='under';if(node.tagName==='H2'&&node.textContent==='Single Light')lightGroup='single';lightingGroups[lightGroup].push(node);}
 for(const [name,nodes] of Object.entries(lightingGroups)){const wrapper=document.createElement('section');wrapper.className=`lighting-layer-card lighting-${name}-card`;wrapper.dataset.lightingLayer=name;nodes.forEach(node=>wrapper.append(node));lightingPanel.append(wrapper);lightingWrappers[name]=wrapper;}
