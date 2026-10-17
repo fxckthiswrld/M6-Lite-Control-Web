@@ -89,14 +89,14 @@ let lightingBrightnessReady=false,lightingModeReady=false,lightingState=null,lig
 function discardLightingDraft(){
  $('backlight-enabled').checked=!!lightingState?.enabled;
  if(singleState){$('single-active').checked=singleState.enabled;showSingleSelection();}
- if(lightingSavedBrightness!==null)$('lighting-brightness').value=lightingSavedBrightness;
+ if(lightingSavedBrightness!==null){$('lighting-brightness').value=Math.round(lightingSavedBrightness*100/255);updateLightingSlider('lighting-brightness','lighting-brightness-value');}
  if(lightingState){$('lighting-mode').value=lightingState.canSwitch?String(lightingState.mode):'';$('lighting-custom-rgb').checked=!!lightingState.customRgb;$('lighting-color').value=lightingState.color||'#000000';}
  $('lighting-speed').value=lightingState?.speed??'';
  $('lighting-reverse').checked=!!lightingState?.reverse;
  if(underLightState)$('underlight-mode').value=underLightState.canSwitch?String(underLightState.mode):'';
  $('underlight-custom-rgb').checked=!!underLightState?.customRgb;$('underlight-color').value=underLightState?.color||'#000000';
  $('underlight-speed').min=0;$('underlight-speed').max=100;$('underlight-speed').value=underLightState?speedToPercent(underLightState.speed,underLightState.speedMinimum,underLightState.speedMaximum):'';
- $('underlight-brightness').value=underLightState?.brightness??'';
+ $('underlight-brightness').value=underLightState?Math.round(underLightState.brightness*100/255):'';updateLightingSlider('underlight-brightness','underlight-brightness-value');
  $('underlight-enabled').checked=!!underLightState?.enabled;
  $('underlight-sync').checked=underLightState?.sync===1;
  updateLightingControls();

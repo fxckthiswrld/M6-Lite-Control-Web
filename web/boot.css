@@ -145,3 +145,10 @@ body[data-page=programming] .key[data-assignment-kind=fn]:after,body[data-page=p
 .programming-mode-row{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 14px}
 .programming-mode-row button{background:#27272a!important;color:#d4d4d8!important;border-radius:10px!important;padding:8px 14px!important}
 .programming-mode-row button[aria-pressed=true]{background:#008cff!important;color:#fff!important;box-shadow:0 0 0 2px #45b5ff}
+
+.programming-overview{display:flex;flex-direction:column;gap:16px;margin-bottom:6px}
+.programming-group-bar{display:flex;gap:4px;padding:4px;background:#27272a;border-radius:999px;margin:18px 0;width:fit-content}
+.programming-group-bar button{background:transparent!important;color:#a1a1aa!important;border:0!important;border-radius:999px!important;padding:10px 18px!important;box-shadow:none!important}
+.programming-group-bar button[aria-pressed=true]{background:#3f3f46!important;color:#fff!important}
+.programming-group-panel[hidden]{display:none!important}
+.programming-group-panel[data-group=DKS]>.programming-card>summary,.programming-group-panel[data-group=Snap]>.programming-card>summary{display:none!important}

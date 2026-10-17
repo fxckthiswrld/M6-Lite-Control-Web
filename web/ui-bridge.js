@@ -20,24 +20,43 @@ if(programmingGroups.Modify){
 }
 let programmingView='Remap';
 const programmingCards={};
-function programmingTab(tab){if(busy)return;fillRemap();fillLayer();fillMedia();fillModify();fillHotKey();showPairState();showDksState();syncProgrammingSelection();programmingView=tab;for(const [name,nodes] of Object.entries(programmingGroups))for(const node of nodes)node.hidden=false;
+function programmingTab(tab){if(busy)return;fillRemap();fillLayer();fillMedia();fillModify();fillHotKey();showPairState();showDksState();syncProgrammingSelection();programmingView=tab;for(const [name,nodes] of Object.entries(programmingGroups))for(const node of nodes)node.hidden=false;showProgrammingGroup(programmingGroup);
  if(uiPage==='programming'){remapPanel.hidden=false;advancedPanel.hidden=false;for(const panel of [remapPanel,advancedPanel]){panel.classList.remove('tab-enter');void panel.offsetWidth;panel.classList.add('tab-enter');}}
 }
 const programmingLayout=document.createElement('div');programmingLayout.id='programming-layout';
 const programmingHelp=document.createElement('section');programmingHelp.className='programming-help-card';programmingHelp.innerHTML='<small>PROGRAMMING</small><h3>Program your keys</h3><p>Select a physical key on the keyboard above, then choose its action in one of the panels.</p><p>Each panel expands to show the available settings. Apply writes the selected key and verifies the result on the keyboard.</p><div class="programming-help-step"><b>1</b><span>Select a source key above</span></div><div class="programming-help-step"><b>2</b><span>Choose an action or target key</span></div><div class="programming-help-step"><b>3</b><span>Apply and read back the setting</span></div>';
-const programmingWorkspace=document.createElement('div');programmingWorkspace.className='programming-workspace';const programmingAccordion=document.createElement('div');programmingAccordion.className='programming-accordion';programmingWorkspace.append(programmingAccordion);const programmingSide=document.createElement('div');programmingSide.className='programming-side';programmingSide.append(programmingHelp);programmingLayout.append(programmingSide,programmingWorkspace);remapPanel.before(programmingLayout);programmingWorkspace.append(remapPanel,advancedPanel);
-const presetCard=document.createElement('details');presetCard.className='programming-card';presetCard.open=true;const presetSummary=document.createElement('summary');presetSummary.textContent='Quick presets';presetCard.append(presetSummary,presetPanel);programmingAccordion.append(presetCard);
+const programmingWorkspace=document.createElement('div');programmingWorkspace.className='programming-workspace';
+const programmingOverview=document.createElement('div');programmingOverview.className='programming-overview';
+const programmingGroupBar=document.createElement('div');programmingGroupBar.className='programming-group-bar';programmingGroupBar.setAttribute('role','tablist');programmingGroupBar.setAttribute('aria-label','Programming group');
+const programmingPanels=document.createElement('div');programmingPanels.className='programming-group-panels';
+programmingWorkspace.append(programmingOverview,programmingGroupBar,programmingPanels);
+const programmingSide=document.createElement('div');programmingSide.className='programming-side';programmingSide.append(programmingHelp);programmingLayout.append(programmingSide,programmingWorkspace);remapPanel.before(programmingLayout);programmingWorkspace.append(remapPanel,advancedPanel);
+const programmingGroupPanels={},programmingGroupButtons={};
+for(const name of ['Remap','DKS','Snap']){
+ const panel=document.createElement('div');panel.className='programming-group-panel';panel.dataset.group=name;programmingPanels.append(panel);programmingGroupPanels[name]=panel;
+ const button=document.createElement('button');button.type='button';button.dataset.group=name;button.setAttribute('role','tab');button.textContent=name;button.onclick=()=>showProgrammingGroup(name);programmingGroupBar.append(button);programmingGroupButtons[name]=button;
+}
+let programmingGroup='Remap';
+function showProgrammingGroup(name){
+ if(!programmingGroupPanels[name])name='Remap';programmingGroup=name;
+ for(const [key,panel] of Object.entries(programmingGroupPanels))panel.hidden=key!==name;
+ for(const [key,button] of Object.entries(programmingGroupButtons))button.setAttribute('aria-pressed',String(key===name));
+}
+const presetCard=document.createElement('details');presetCard.className='programming-card';presetCard.open=true;const presetSummary=document.createElement('summary');presetSummary.textContent='Quick presets';presetCard.append(presetSummary,presetPanel);programmingOverview.append(presetCard);
 for(const [name,nodes] of Object.entries(programmingGroups)){
  if(name==='Off / Enable key'){
   const offCard=document.createElement('section');offCard.className='programming-off-card';offCard.dataset.programmingGroup=name;
   const offHeading=document.createElement('h3');offHeading.textContent='Off / Enable key';offCard.append(offHeading);
-   for(const node of nodes){if(node.tagName==='H2'){node.remove();continue;}node.hidden=false;offCard.append(node);}
-   programmingAccordion.prepend(offCard);
-   continue;
-  }
-  const card=document.createElement('details');card.className='programming-card';card.dataset.programmingGroup=name;const summary=document.createElement('summary');summary.textContent=name==='Layer assignment'?'FN / Layer assignment':name==='Snap Tap / SOCD'?'Snap Tap / SOCD':name;card.append(summary);for(const node of nodes){if(node.tagName==='H2')node.hidden=true;node.hidden=false;card.append(node);}programmingAccordion.append(card);programmingCards[name]=card;
+  for(const node of nodes){if(node.tagName==='H2'){node.remove();continue;}node.hidden=false;offCard.append(node);}
+  programmingOverview.prepend(offCard);
+  continue;
+ }
+ const card=document.createElement('details');card.className='programming-card';card.dataset.programmingGroup=name;const summary=document.createElement('summary');summary.textContent=name==='Layer assignment'?'FN / Layer assignment':name==='Snap Tap / SOCD'?'Snap Tap / SOCD':name;card.append(summary);for(const node of nodes){if(node.tagName==='H2')node.hidden=true;node.hidden=false;card.append(node);}programmingCards[name]=card;
 }
-for(const name of ['Remap','Layer assignment','Media','HotKey','DKS','Snap Tap / SOCD']){const card=programmingCards[name];if(card)programmingAccordion.append(card);}
+for(const name of ['Remap','Layer assignment','Media','HotKey'])programmingGroupPanels.Remap.append(programmingCards[name]);
+const dksCard=programmingCards['DKS'];if(dksCard){dksCard.open=true;programmingGroupPanels.DKS.append(dksCard);}
+const snapCard=programmingCards['Snap Tap / SOCD'];if(snapCard){snapCard.open=true;programmingGroupPanels.Snap.append(snapCard);}
+showProgrammingGroup('Remap');
 function programmingKeyLabel(id){return profile?.layout.find(key=>key.id===id)?.label||id;}
 function syncProgrammingSlots(){
  const source=$('dks-source')?.value,target=$('dks-target')?.value;
