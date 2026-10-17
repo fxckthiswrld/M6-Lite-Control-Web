@@ -99,3 +99,6 @@ body[data-page=lighting] .key.key-selected{background:#093e65;border-color:#008c
 .calibration-key.changed{border-color:#f2ba72!important;box-shadow:0 0 0 2px #f2ba7266!important}
 .calibration-key.changed span:last-child{color:#f2ba72}
 @keyframes cal-live-pulse{50%{opacity:.25}}
+
+.programming-side{display:flex;flex-direction:column;gap:16px;min-width:0}
+#programming-layout>.programming-side{display:flex!important;min-width:0}

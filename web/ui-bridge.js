@@ -25,14 +25,14 @@ function programmingTab(tab){if(busy)return;fillRemap();fillLayer();fillMedia();
 }
 const programmingLayout=document.createElement('div');programmingLayout.id='programming-layout';
 const programmingHelp=document.createElement('section');programmingHelp.className='programming-help-card';programmingHelp.innerHTML='<small>PROGRAMMING</small><h3>Program your keys</h3><p>Select a physical key on the keyboard above, then choose its action in one of the panels.</p><p>Each panel expands to show the available settings. Apply writes the selected key and verifies the result on the keyboard.</p><div class="programming-help-step"><b>1</b><span>Select a source key above</span></div><div class="programming-help-step"><b>2</b><span>Choose an action or target key</span></div><div class="programming-help-step"><b>3</b><span>Apply and read back the setting</span></div>';
-const programmingWorkspace=document.createElement('div');programmingWorkspace.className='programming-workspace';const programmingAccordion=document.createElement('div');programmingAccordion.className='programming-accordion';programmingWorkspace.append(programmingAccordion);programmingLayout.append(programmingHelp,programmingWorkspace);remapPanel.before(programmingLayout);programmingWorkspace.append(remapPanel,advancedPanel);
+const programmingWorkspace=document.createElement('div');programmingWorkspace.className='programming-workspace';const programmingAccordion=document.createElement('div');programmingAccordion.className='programming-accordion';programmingWorkspace.append(programmingAccordion);const programmingSide=document.createElement('div');programmingSide.className='programming-side';programmingSide.append(programmingHelp);programmingLayout.append(programmingSide,programmingWorkspace);remapPanel.before(programmingLayout);programmingWorkspace.append(remapPanel,advancedPanel);
 const presetCard=document.createElement('details');presetCard.className='programming-card';presetCard.open=true;const presetSummary=document.createElement('summary');presetSummary.textContent='Quick presets';presetCard.append(presetSummary,presetPanel);programmingAccordion.append(presetCard);
 for(const [name,nodes] of Object.entries(programmingGroups)){
  if(name==='Off / Enable key'){
   const offCard=document.createElement('section');offCard.className='programming-off-card';offCard.dataset.programmingGroup=name;
   const offHeading=document.createElement('h3');offHeading.textContent='Off / Enable key';offCard.append(offHeading);
   for(const node of nodes){if(node.tagName==='H2'){node.remove();continue;}node.hidden=false;offCard.append(node);}
-  programmingLayout.append(offCard);
+  programmingSide.append(offCard);
   continue;
  }
  const card=document.createElement('details');card.className='programming-card';card.dataset.programmingGroup=name;const summary=document.createElement('summary');summary.textContent=name==='Layer assignment'?'FN / Layer assignment':name==='Snap Tap / SOCD'?'Snap Tap / SOCD':name;card.append(summary);for(const node of nodes){if(node.tagName==='H2')node.hidden=true;node.hidden=false;card.append(node);}programmingAccordion.append(card);programmingCards[name]=card;

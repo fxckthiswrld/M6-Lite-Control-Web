@@ -390,11 +390,16 @@ async function calibrationCommand(command){
     setCalibrationActive(command===1);
     if(command===1){
       $('calibration-status').textContent='Calibration started. Saved ranges and changes update live. Press switches in any order, then choose Finish.';if(typeof startCalibrationPoll==='function')startCalibrationPoll();
+    }else if(command===2){
+      if(typeof stopCalibrationPoll==='function')stopCalibrationPoll();
+      setCalibrationActive(false);
+      $('calibration-status').textContent='Finish command sent. Reloading...';
+      setTimeout(()=>window.location.reload(),800);
     }else{
       if(typeof stopCalibrationPoll==='function')stopCalibrationPoll();
       await new Promise(r=>setTimeout(r,1500));
       await readCalibrationAfterReconnect();
-      $('calibration-status').textContent=(command===2?'Finish command sent. ':'Cancel command sent. ')+$('calibration-status').textContent;
+      $('calibration-status').textContent='Cancel command sent. '+$('calibration-status').textContent;
     }
   }catch(error){$('calibration-status').textContent=error.message;}
   finally{setBusy(false);}
