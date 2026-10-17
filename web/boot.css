@@ -48,3 +48,13 @@ header .header-actions{display:none!important}
 .device-data .actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .device-data-actions button{margin:0}
 #device-data-status{min-height:18px;margin:12px 0 0;font-size:12px;line-height:1.4;color:#55d69a}
+.panel .performance-card{max-width:none;padding:16px 18px;border-radius:16px;background:linear-gradient(135deg,#202127,#141418)}
+.performance-heading{gap:14px}
+.performance-heading h2{font-size:19px;margin:0;letter-spacing:-.2px}
+.performance-card>p{margin:8px 0;font-size:12px;line-height:1.45;color:#a1a1aa}
+.performance-card .fps-switch{gap:6px;font-size:11px}
+.performance-modes{gap:8px;margin:14px 0}
+.performance-modes button{flex:1;min-height:0;padding:10px 8px;border-radius:10px;font-size:13px;font-weight:600}
+.performance-modes button[aria-pressed="true"]{background:#008cff!important;color:#fff!important;box-shadow:0 0 0 2px #45b5ff!important;outline:0}
+.performance-card .actions{margin-top:0;gap:10px}
+.performance-card .actions button{padding:10px 14px;font-size:13px}
