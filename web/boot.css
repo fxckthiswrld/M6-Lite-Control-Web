@@ -79,3 +79,17 @@ body[data-page=lighting] .key.key-selected{background:#093e65;border-color:#008c
 
 .panel>small{display:block;margin-bottom:14px}
 .panel .performance-card,.panel .device-data{margin-top:0}
+
+.programming-help-card{position:static!important}
+.programming-off-card{background:#202124;border:1px solid #303136;border-radius:16px;padding:20px;min-width:0}
+.programming-off-card>h3{margin:0 0 12px;font-size:18px;color:#f0f0f2}
+.programming-off-card p{color:#a1a1aa;font-size:13px;line-height:1.55;margin:10px 0}
+.programming-off-card .toggle-row{margin:14px 0}
+.programming-off-card button{margin-top:4px}
+.actions+.actions{margin-top:14px}
+#status{display:block;margin-top:6px}
+
+#calibration-map{position:relative;margin:24px 0 28px}
+#calibration-map .calibration-key{cursor:pointer;padding:4px;font:inherit;font-size:10px;color:#e8edf5;text-align:center}
+#calibration-map .calibration-key:hover{border-color:#4eafff;filter:brightness(1.15)}
+#calibration-map .calibration-key.chosen{background:#0b3a5c;border-color:#008cff;box-shadow:0 0 0 2px #008cff}
