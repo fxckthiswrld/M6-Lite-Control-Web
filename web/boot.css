@@ -156,3 +156,9 @@ body[data-page=programming] .key[data-assignment-kind=fn]:after,body[data-page=p
 .programming-group-panel[data-group=DKS]>.programming-card>summary,.programming-group-panel[data-group=Snap]>.programming-card>summary{display:none!important}
 
 .dks-title{margin:0 0 8px;font-size:18px;color:#f4f4f5}
+
+.programming-group-panel[data-group=DKS]>.programming-card,.programming-group-panel[data-group=Snap]>.programming-card{padding:20px}
+.programming-group-panel[data-group=DKS]>.programming-card>p,.programming-group-panel[data-group=DKS]>.programming-card>.controls,.programming-group-panel[data-group=DKS]>.programming-card>.actions,.programming-group-panel[data-group=DKS]>.programming-card>label,.programming-group-panel[data-group=DKS]>.programming-card>hr,.programming-group-panel[data-group=Snap]>.programming-card>p,.programming-group-panel[data-group=Snap]>.programming-card>.controls,.programming-group-panel[data-group=Snap]>.programming-card>.actions,.programming-group-panel[data-group=Snap]>.programming-card>label,.programming-group-panel[data-group=Snap]>.programming-card>hr{margin-left:0!important;margin-right:0!important}
+.programming-group-panel[data-group=DKS] .dks-title{margin:0 0 10px!important}
+.programming-group-panel[data-group=DKS] .programming-slot-grid{margin-top:12px}
+.programming-group-panel[data-group=DKS] .programming-card>.actions{padding-bottom:0}
