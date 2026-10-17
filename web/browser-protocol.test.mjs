@@ -54,6 +54,8 @@ test('quick DKS preset emits four individual writes including W', () => {
 test('quick Snap preset emits pair writes for A and D', () => {
   const plan = prepareQuickPreset(programmingFixture(), 0, 'snap');
   assert.equal(plan.commands.length, 2);
+  assert.equal(plan.commands[0][2], 11);
+  assert.equal(plan.commands[1][2], 11);
   assert.deepEqual([...plan.commands[0].subarray(6, 12)], [2, 1, 5, 0, 3, 3]);
   assert.deepEqual([...plan.commands[1].subarray(6, 12)], [2, 3, 5, 0, 3, 1]);
   assert.equal(plan.expected[8 + 29 * 68], 5);
@@ -323,4 +325,33 @@ test('unrecognized stored MMPanel values block only their own setting', async ()
   await assert.rejects(() => adapter.setAutoCalibration(true), /Unsupported device setting value/);
   sections.get(17)[4] = 9;
   await assert.rejects(() => adapter.setHighlight(true), /Unsupported device setting value/);
+});
+
+test('calibration reset sends 08 30 04 and verifies every record at baseline', async () => {
+  const before = Buffer.alloc(420);
+  for (let index = 0; index < 70; index++) { before[index * 6] = index % 2; before.writeUInt16LE(1700 + index, index * 6 + 2); before.writeUInt16LE(2600 + index, index * 6 + 4); }
+  const after = Buffer.from(before);
+  for (let index = 0; index < 70; index++) { after.writeUInt16LE(2000, index * 6 + 2); after.writeUInt16LE(2200, index * 6 + 4); }
+  let reads = 0; const writes = [];
+  const adapter = new BrowserAdapter();
+  adapter.device = {
+    readInit(kind) { assert.equal(kind, 24); reads++; return Buffer.from(reads === 1 ? before : after); },
+    send(payload) { writes.push(Buffer.from(payload)); }
+  };
+  const result = await adapter.resetCalibration();
+  assert.equal(result.verified, true);
+  assert.equal(result.resetCount, 70);
+  assert.deepEqual([...writes[0].subarray(0, 3)], [8, 48, 4]);
+});
+
+test('calibration reset rejects a non-baseline readback', async () => {
+  const before = Buffer.alloc(420);
+  const after = Buffer.from(before); after.writeUInt16LE(1999, 2);
+  let reads = 0;
+  const adapter = new BrowserAdapter();
+  adapter.device = {
+    readInit() { reads++; return Buffer.from(reads === 1 ? before : after); },
+    send() {}
+  };
+  await assert.rejects(() => adapter.resetCalibration(), /readback mismatch/);
 });

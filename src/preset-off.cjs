@@ -16,7 +16,7 @@ function prepareQuickPreset(raw,layer,preset){
   for(const index of preset==='snap'?[29,31]:indices){
     const key=profile.keys[index],partner=profile.keys[partners.get(index)],offset=8+index*68,target={row:partner.row+1,col:partner.col};
     if(preset==='snap'){
-      commands.push(encodePair(key,layer,profile.allSteps,5,target));
+      commands.push(encodePair(key,layer,profile.allSteps,5,target,11));
       expected[offset]=5;expected[offset+64]=target.row;expected[offset+65]=target.col;
     }else{
       const dks=buildDksRecord(key.record.subarray(52,64),target,20);

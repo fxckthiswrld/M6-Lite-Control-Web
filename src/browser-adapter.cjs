@@ -70,6 +70,15 @@ class BrowserAdapter {
   async calibrationCommand(command,selectedId){if(![1,2,3].includes(command))throw Error('Unsupported calibration command');if(command===1&&this.calibrationSession?.phase==='active')throw Error('Calibration is already active');let baseline=this.calibrationSession?.baseline;if(command===1){baseline=Array.from(await this.device.readInit(24));calibration.parseCalibration(Buffer.from(baseline));}const p=Buffer.alloc(20);p.set([8,48,command]);await this.device.send(p);const phase=command===1?'active':command===2?'finished':'canceled';this.saveCalibrationSession({phase,baseline,selectedId:selectedId||this.calibrationSession?.selectedId||null,updatedAt:new Date().toISOString()});return {command,started:command===1,finished:command===2,canceled:command===3,backup:'browser-session'};}
   async calibrateSelected(id){if(!layout.some(key=>key.id===id))throw Error('Select one physical switch');return this.calibrationCommand(1,id);}
   async calibrationState(){const s=this.calibrationSession;return {active:s?.phase==='active',phase:s?.phase||'idle',baselineBackup:s?.baseline?'browser-session':null,source:'browser-session',deviceStateVerified:false,...(s?.selectedId?{selectedId:s.selectedId}:{})};}
+  async resetCalibration(){
+    const before=await this.device.readInit(24);calibration.parseCalibration(before);
+    try{globalThis.localStorage?.setItem('m6-calibration-reset-backup',JSON.stringify({at:new Date().toISOString(),raw:Array.from(before)}));}catch{}
+    const payload=Buffer.alloc(20);payload.set([8,48,4]);await this.device.send(payload);
+    let after;try{after=await this.device.readInit(24);}catch(error){throw Error(`Calibration reset command was sent, but readback failed: ${error.message}. Backup: browser-session`);}
+    const records=calibration.parseCalibration(after),invalid=records.filter(record=>record.min!==2000||record.max!==2200);
+    if(invalid.length)throw Error(`Calibration reset readback mismatch: ${invalid.length} records are not at 2000 / 2200. Backup: browser-session`);
+    return {command:4,verified:true,backup:'browser-session',records,layout,resetCount:records.length};
+  }
   deviceSettingsFromRaw(raw,light){
     if(!Buffer.isBuffer(raw)||raw.length<14)throw Error('Incomplete device settings');
     if(light!==undefined&&(!Buffer.isBuffer(light)||light.length<5))throw Error('Incomplete lighting settings');

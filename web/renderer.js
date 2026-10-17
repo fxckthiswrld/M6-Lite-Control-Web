@@ -334,7 +334,7 @@ for(const name of ['media','layer'])$(name+'-standard').onclick=async()=>{
  catch(e){$(name+'-status').textContent=e.message;}finally{setBusy(false);}
 };
 const calibrationPanel=document.createElement('section');calibrationPanel.className='panel';calibrationPanel.hidden=true;
-calibrationPanel.innerHTML='<small>HALL EFFECT</small><h2>Calibration</h2><p>Read the saved sensor ranges for every switch. Reading creates a local backup and preserves the current calibration.</p><button id="calibration-read">Refresh calibration</button><button id="calibration-start">Calibrate all</button><button id="calibration-selected">Calibrate selected key</button><button id="calibration-finish" hidden>Finish</button><button id="calibration-cancel" class="secondary" hidden>Cancel</button><p id="calibration-status" role="status" aria-live="polite">Not read yet.</p><p id="calibration-live" class="calibration-live" role="status" aria-live="polite"></p><p id="calibration-read-status" class="calibration-read-status">No successful read yet.</p><p>OK = a saved working sensor range. Not calibrated = factory/reset baseline 2000 / 2200. Error = an unexpected range. Empty = both values are zero.</p><p><strong>Selected-key flow:</strong> tap a switch above, choose Calibrate selected key, press only that switch, choose Finish, then confirm the vendor save prompt. The keyboard may reconnect.</p>';
+calibrationPanel.innerHTML='<small>HALL EFFECT</small><h2>Calibration</h2><p>Read the saved sensor ranges for every switch. Reading creates a local backup and preserves the current calibration.</p><button id="calibration-read">Refresh calibration</button><button id="calibration-reset" class="secondary">Reset all calibration</button><button id="calibration-start">Calibrate all</button><button id="calibration-selected">Calibrate selected key</button><button id="calibration-finish" hidden>Finish</button><button id="calibration-cancel" class="secondary" hidden>Cancel</button><p id="calibration-status" role="status" aria-live="polite">Not read yet.</p><p id="calibration-live" class="calibration-live" role="status" aria-live="polite"></p><p id="calibration-read-status" class="calibration-read-status">No successful read yet.</p><p>OK = a saved working sensor range. Not calibrated = factory/reset baseline 2000 / 2200. Error = an unexpected range. Empty = both values are zero.</p><p><strong>Reset all calibration</strong> restores every saved sensor range to 2000 / 2200. A backup is created before the reset. This operation cannot be undone automatically.</p><p><strong>Selected-key flow:</strong> tap a switch above, choose Calibrate selected key, press only that switch, choose Finish, then confirm the vendor save prompt. The keyboard may reconnect.</p>';
 pendingPanel.after(calibrationPanel);
 const calibrationMap=document.createElement('div');calibrationMap.id='calibration-map';calibrationMap.className='keyboard';calibrationMap.setAttribute('aria-label','Saved switch calibration');calibrationMap.hidden=true;$('keyboard').after(calibrationMap);
 let calibrationActive=false,calibrationStateKnown=false,calibrationPoll=null,calibrationLiveBaseline=null;
@@ -352,11 +352,12 @@ function startCalibrationPoll(){
   };
   tick();
 }
-function setCalibrationActive(value){calibrationActive=value;if(value)calibrationLiveBaseline=null;$('calibration-start').hidden=value;$('calibration-selected').hidden=value;$('calibration-finish').hidden=!value;$('calibration-cancel').hidden=!value;const live=$('calibration-live');if(live){live.classList.toggle('active',value);if(!value)live.textContent='';}}
+function setCalibrationActive(value){calibrationActive=value;if(value)calibrationLiveBaseline=null;$('calibration-start').hidden=value;$('calibration-selected').hidden=value;$('calibration-finish').hidden=!value;$('calibration-cancel').hidden=!value;$('calibration-reset').disabled=value||!calibrationStateKnown;const live=$('calibration-live');if(live){live.classList.toggle('active',value);if(!value)live.textContent='';}}
 function updateSelectedCalibrationButton(){
   $('calibration-selected').disabled=busy||!calibrationStateKnown||calibrationActive||!selectedId;
   $('calibration-selected').title=selectedId?`Calibrate ${profile?.layout.find(k=>k.id===selectedId)?.label||selectedId}`:'Select a switch first';
   $('calibration-start').disabled=busy||!calibrationStateKnown||calibrationActive;
+  $('calibration-reset').disabled=busy||!calibrationStateKnown||calibrationActive;
   $('calibration-finish').disabled=busy||!calibrationStateKnown||!calibrationActive;
   $('calibration-cancel').disabled=busy||!calibrationStateKnown||!calibrationActive;
 }
@@ -417,6 +418,19 @@ async function calibrationCommand(command){
   finally{setBusy(false);}
 }
 $('calibration-start').onclick=()=>calibrationCommand(1);
+$('calibration-reset').onclick=async()=>{
+  if(busy||!calibrationStateKnown||calibrationActive)return;
+  const prompt='Reset calibration values for all keys?\n\nAll saved sensor ranges will be replaced with the 2000 / 2200 baseline. A backup will be kept, but automatic undo is unavailable.';
+  if(!window.confirm(prompt))return;
+  setBusy(true);$('calibration-status').textContent='Resetting all calibration values...';
+  try{
+    const reply=await window.keyboard.resetCalibration();
+    if(!reply.ok)throw new Error(reply.error);
+    await refreshCalibration();
+    $('calibration-status').textContent=`Calibration reset verified for ${reply.result.resetCount} records. Backup: ${reply.result.backup}`;
+  }catch(error){$('calibration-status').textContent=error.message;}
+  finally{setBusy(false);updateSelectedCalibrationButton();}
+};
 $('calibration-selected').onclick=async()=>{
   if(busy||!calibrationStateKnown||calibrationActive||!selectedId)return;
   setBusy(true);$('calibration-status').textContent=`Starting selected-key calibration for ${profile?.layout.find(k=>k.id===selectedId)?.label||selectedId}...`;
@@ -582,11 +596,30 @@ function showSelected() {
 function displayTravel(key){return {trigger:(key.rtOn?key.trigger:key.fixedDown).toFixed(3),release:(key.rtOn?key.release:key.fixedUp).toFixed(3)};}
 const keyStateSummary=document.createElement('p');keyStateSummary.id='key-state-summary';keyStateSummary.setAttribute('role','status');
 $('keyboard').after(keyStateSummary);
+function programmingBadge(assignment){
+ if(!assignment)return null;
+ const labelFor=id=>profile?.layout.find(k=>k.id===id)?.label||id;
+ if(assignment.mode===5&&assignment.snap?.row){const id=`${assignment.snap.row-1}:${assignment.snap.col}`;return {text:`SNAP→${labelFor(id)}`,kind:'snap'};}
+ if(assignment.mode===6&&assignment.cancel?.row){const id=`${assignment.cancel.row-1}:${assignment.cancel.col}`;return {text:`SOCD→${labelFor(id)}`,kind:'snap'};}
+ if(assignment.mode===4){
+  if(assignment.dks?.type===1)return {text:'DKS·MOUSE',kind:'dks'};
+  if(assignment.dks?.row){const id=`${assignment.dks.row-1}:${assignment.dks.col}`;return {text:`DKS→${labelFor(id)}`,kind:'dks'};}
+  return {text:'DKS',kind:'dks'};
+ }
+ if(assignment.mode===3)return {text:[0,1,2].includes(assignment.layer?.layer)?`FN${assignment.layer.layer+1}`:'FN',kind:'fn'};
+ if(assignment.mode===2)return {text:'MEDIA',kind:'media'};
+ if(assignment.mode===0&&assignment.modify?.type===0&&assignment.modify.row>=1&&(assignment.modify.row!==assignment.row+1||assignment.modify.col!==assignment.col)){
+  const id=`${assignment.modify.row-1}:${assignment.modify.col}`;return {text:`→${labelFor(id)}`,kind:'remap'};
+ }
+ return null;
+}
 function updateProgrammingIndicators(){
  const disabled=[];
  for(const button of $('keyboard').querySelectorAll('.key')){
   const assignment=programming?.keys.find(k=>k.row+':'+k.col===button.dataset.id);
   const off=assignment?.locked===1;button.classList.toggle('key-off',off);
+  const badge=programmingBadge(assignment);
+  if(badge){button.dataset.assignment=badge.text;button.dataset.assignmentKind=badge.kind;}else{delete button.dataset.assignment;delete button.dataset.assignmentKind;}
   if(!profile){const unavailable=button.querySelector('.key-label').textContent+', device state unavailable';button.title=unavailable;button.setAttribute('aria-label',unavailable);}
   if(off)disabled.push(button.querySelector('.key-label').textContent);
  }

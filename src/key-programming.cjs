@@ -58,12 +58,13 @@ function header(key,layer,allSteps,mode) {
   const b=Buffer.alloc(20);b.set([8,3,1,layer]);b.writeUInt16LE(allSteps,4);
   b[6]=key.row;b[7]=key.col;b[8]=(key.locked<<4)|mode;return b;
 }
-function encodePair(key,layer,allSteps,mode,target) {
+function encodePair(key,layer,allSteps,mode,target,command=1) {
   if(mode!==5&&mode!==6)throw new Error('Expected Snap Tap or SOCD mode');
+  if(command!==1&&command!==11)throw new Error('Invalid pair command');
   // Stored partner rows are 1-based; physical source rows are 0-based.
   byte(target.row,'partner row',5);if(!target.row)throw new RangeError('Partner row must be 1-based');
   byte(target.col,'partner column',13);
-  const b=header(key,layer,allSteps,mode);b[10]=target.row;b[11]=target.col;return b;
+  const b=header(key,layer,allSteps,mode);b[2]=command;b[10]=target.row;b[11]=target.col;return b;
 }
 function encodeModRestore(key,layer,allSteps) {
   if(key.mode!==0||!Buffer.isBuffer(key.record)||key.record.length!==RECORD_SIZE)

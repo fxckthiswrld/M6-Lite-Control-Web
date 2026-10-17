@@ -126,3 +126,10 @@ body[data-page=lighting] .key.key-selected{background:#093e65;border-color:#008c
 @media(max-width:900px){.device-options-grid{grid-template-columns:1fr}}
 
 .calibration-read-status{min-height:16px;margin:4px 0 12px;font-size:11px;line-height:1.5;color:#8e919c;overflow-wrap:anywhere}
+
+.keyboard{max-width:1120px;margin-left:auto;margin-right:auto}
+body[data-page=programming] .key[data-assignment]:after{content:attr(data-assignment);position:absolute;left:3px;right:3px;bottom:4px;padding:1px 4px;border-radius:4px;background:#0b3550;border:1px solid #1d6f9c;color:#8fd3ff;font-size:8px;font-weight:700;line-height:1.25;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
+body[data-page=programming] .key[data-assignment-kind=dks]:after{background:#06301f;border-color:#12664a;color:#5ee9a8}
+body[data-page=programming] .key[data-assignment-kind=snap]:after{background:#2a1a45;border-color:#6b46c1;color:#c4a5ff}
+body[data-page=programming] .key[data-assignment-kind=remap]:after{background:#0b3550;border-color:#1d6f9c;color:#8fd3ff}
+body[data-page=programming] .key[data-assignment-kind=fn]:after,body[data-page=programming] .key[data-assignment-kind=media]:after{background:#2a2a33;border-color:#52525b;color:#d4d4d8}
