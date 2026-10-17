@@ -94,10 +94,12 @@ function syncProgrammingSlots(){
 function renderProgrammingSlots(){
  const dksCard=programmingCards['DKS'],snapCard=programmingCards['Snap Tap / SOCD'];
  if(dksCard&&!dksCard.querySelector('.programming-slot-grid')){
+  const intro=dksCard.querySelector('p');
+  if(intro){intro.insertAdjacentHTML('beforebegin','<h3 class="dks-title">Dynamic Keystroke (DKS)</h3>');intro.textContent='Pick a source key and one DKS target. The target repeats at the selected interval while the source is held.';}
   const controls=dksCard.querySelector('.controls');
-  controls.insertAdjacentHTML('beforebegin','<div class="programming-slot-grid"><button type="button" class="programming-slot" data-dks-slot="source"><span>Key 1</span><b id="dks-source-box">Assign</b></button><button type="button" class="programming-slot" data-dks-slot="target"><span>Key 2</span><b id="dks-target-box">Assign</b></button></div><p class="programming-slot-hint" id="dks-slot-hint" role="status"></p><div class="programming-preset-row"><span>Preset bindings</span>'+['W','A','S','D'].map(label=>'<button type="button" data-dks-preset="'+label+'">'+label+'</button>').join('')+'</div>');
+  controls.insertAdjacentHTML('beforebegin','<div class="programming-slot-grid"><button type="button" class="programming-slot" data-dks-slot="source"><span>Key 1 · Source</span><b id="dks-source-box">Assign</b></button><button type="button" class="programming-slot" data-dks-slot="target"><span>Key 2 · Target</span><b id="dks-target-box">Assign</b></button></div><p class="programming-slot-hint" id="dks-slot-hint" role="status"></p><div class="programming-preset-row"><span>Preset bindings</span>'+['W','A','S','D'].map(label=>'<button type="button" data-dks-preset="'+label+'">'+label+'</button>').join('')+'</div>');
   for(const slot of dksCard.querySelectorAll('[data-dks-slot]'))slot.onclick=()=>setProgrammingSlot('dks-'+slot.dataset.dksSlot);
-  for(const button of dksCard.querySelectorAll('[data-dks-preset]'))button.onclick=()=>{const key=profile?.layout.find(item=>(item.label||'').toUpperCase()===button.dataset.dksPreset);if(!key)return;$('dks-source').value=key.id;$('dks-source').dispatchEvent(new Event('change'));syncProgrammingSlots();};
+  for(const button of dksCard.querySelectorAll('[data-dks-preset]'))button.onclick=()=>{const key=profile?.layout.find(item=>(item.label||'').toUpperCase()===button.dataset.dksPreset);if(!key)return;$('dks-target').value=key.id;$('dks-target').dispatchEvent(new Event('change'));syncProgrammingSlots();};
  }
  if(snapCard&&!snapCard.querySelector('.programming-slot-grid')){
   const controls=snapCard.querySelector('.controls');
