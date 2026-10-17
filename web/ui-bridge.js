@@ -36,7 +36,17 @@ for(const name of ['Remap','DKS','Snap']){
  const panel=document.createElement('div');panel.className='programming-group-panel';panel.dataset.group=name;programmingPanels.append(panel);programmingGroupPanels[name]=panel;
  const button=document.createElement('button');button.type='button';button.dataset.group=name;button.setAttribute('role','tab');button.textContent=name;button.onclick=()=>showProgrammingGroup(name);programmingGroupBar.append(button);programmingGroupButtons[name]=button;
 }
-let programmingGroup='Remap';
+let programmingGroup='Remap',programmingSlot=null;
+function setProgrammingSlot(id){
+ programmingSlot=programmingSlot===id?null:id;
+ for(const slot of document.querySelectorAll('.programming-slot')){
+  const target=slot.dataset.dksSlot?`dks-${slot.dataset.dksSlot}`:slot.dataset.pairSlot?`pair-${slot.dataset.pairSlot}`:null;
+  slot.classList.toggle('picking',target===programmingSlot);
+ }
+ const dksHint=$('dks-slot-hint'),pairHint=$('pair-slot-hint');
+ if(dksHint)dksHint.textContent=programmingSlot?.startsWith('dks-')?'Tap a key on the keyboard above to assign it. Click the slot again to cancel.':'';
+ if(pairHint)pairHint.textContent=programmingSlot?.startsWith('pair-')?'Tap a key on the keyboard above to assign it. Click the slot again to cancel.':'';
+}
 function showProgrammingGroup(name){
  if(!programmingGroupPanels[name])name='Remap';programmingGroup=name;
  for(const [key,panel] of Object.entries(programmingGroupPanels))panel.hidden=key!==name;
@@ -48,7 +58,21 @@ for(const [name,nodes] of Object.entries(programmingGroups)){
   const offCard=document.createElement('section');offCard.className='programming-off-card';offCard.dataset.programmingGroup=name;
   const offHeading=document.createElement('h3');offHeading.textContent='Off / Enable key';offCard.append(offHeading);
   for(const node of nodes){if(node.tagName==='H2'){node.remove();continue;}node.hidden=false;offCard.append(node);}
-  programmingOverview.prepend(offCard);
+  offCard.insertAdjacentHTML('beforeend','<button id="programming-reset-all" class="secondary">Reset all keys to Standard</button><p id="programming-reset-all-status" role="status"></p>');
+  $('programming-reset-all').onclick=async()=>{
+   if(busy||!programming)return;
+   if(!window.confirm('Reset all programming assignments for this profile to Standard?\n\nA backup will be kept, but automatic undo is unavailable.'))return;
+   setBusy(true);$('programming-reset-all-status').textContent='Resetting all keys...';
+   try{
+    const reply=await window.keyboard.resetAllProgramming({layer});
+    if(!reply.ok)throw new Error(reply.error);
+    programming=reply.result;
+    fillRemap();fillLayer();fillMedia();fillModify();fillHotKey();showPairState();showDksState();syncProgrammingSlots();updateProgrammingIndicators();
+    $('programming-reset-all-status').textContent=`Reset ${reply.result.resetCount} keys to Standard. Backup: ${reply.result.backup}`;
+   }catch(error){$('programming-reset-all-status').textContent=error.message;}
+   finally{setBusy(false);}
+  };
+  programmingOverview.append(offCard);
   continue;
  }
  const card=document.createElement('details');card.className='programming-card';card.dataset.programmingGroup=name;const summary=document.createElement('summary');summary.textContent=name==='Layer assignment'?'FN / Layer assignment':name==='Snap Tap / SOCD'?'Snap Tap / SOCD':name;card.append(summary);for(const node of nodes){if(node.tagName==='H2')node.hidden=true;node.hidden=false;card.append(node);}programmingCards[name]=card;
@@ -71,16 +95,16 @@ function renderProgrammingSlots(){
  const dksCard=programmingCards['DKS'],snapCard=programmingCards['Snap Tap / SOCD'];
  if(dksCard&&!dksCard.querySelector('.programming-slot-grid')){
   const controls=dksCard.querySelector('.controls');
-  controls.insertAdjacentHTML('beforebegin','<div class="programming-slot-grid"><button type="button" class="programming-slot" data-dks-slot="source"><span>Key 1</span><b id="dks-source-box">Assign</b></button><button type="button" class="programming-slot" data-dks-slot="target"><span>Key 2</span><b id="dks-target-box">Assign</b></button></div><div class="programming-preset-row"><span>Preset bindings</span>'+['W','A','S','D'].map(label=>'<button type="button" data-dks-preset="'+label+'">'+label+'</button>').join('')+'</div>');
-  for(const slot of dksCard.querySelectorAll('[data-dks-slot]'))slot.onclick=()=>{if(!selectedId)return;const select=$('dks-'+slot.dataset.dksSlot);select.value=selectedId;select.dispatchEvent(new Event('change'));syncProgrammingSlots();};
+  controls.insertAdjacentHTML('beforebegin','<div class="programming-slot-grid"><button type="button" class="programming-slot" data-dks-slot="source"><span>Key 1</span><b id="dks-source-box">Assign</b></button><button type="button" class="programming-slot" data-dks-slot="target"><span>Key 2</span><b id="dks-target-box">Assign</b></button></div><p class="programming-slot-hint" id="dks-slot-hint" role="status"></p><div class="programming-preset-row"><span>Preset bindings</span>'+['W','A','S','D'].map(label=>'<button type="button" data-dks-preset="'+label+'">'+label+'</button>').join('')+'</div>');
+  for(const slot of dksCard.querySelectorAll('[data-dks-slot]'))slot.onclick=()=>setProgrammingSlot('dks-'+slot.dataset.dksSlot);
   for(const button of dksCard.querySelectorAll('[data-dks-preset]'))button.onclick=()=>{const key=profile?.layout.find(item=>(item.label||'').toUpperCase()===button.dataset.dksPreset);if(!key)return;$('dks-source').value=key.id;$('dks-source').dispatchEvent(new Event('change'));syncProgrammingSlots();};
  }
  if(snapCard&&!snapCard.querySelector('.programming-slot-grid')){
   const controls=snapCard.querySelector('.controls');
-  controls.insertAdjacentHTML('beforebegin','<div class="programming-slot-grid"><button type="button" class="programming-slot" data-pair-slot="first"><span>Key 1</span><b id="pair-first-box">Assign</b></button><button type="button" class="programming-slot" data-pair-slot="second"><span>Key 2</span><b id="pair-second-box">Assign</b></button></div><div class="programming-mode-row"><button type="button" data-pair-mode="5">Snap Tap</button><button type="button" data-pair-mode="6">SOCD / AD Cancel</button></div>');
+  controls.insertAdjacentHTML('beforebegin','<div class="programming-slot-grid"><button type="button" class="programming-slot" data-pair-slot="first"><span>Key 1</span><b id="pair-first-box">Assign</b></button><button type="button" class="programming-slot" data-pair-slot="second"><span>Key 2</span><b id="pair-second-box">Assign</b></button></div><p class="programming-slot-hint" id="pair-slot-hint" role="status"></p><div class="programming-mode-row"><button type="button" data-pair-mode="5">Snap Tap</button><button type="button" data-pair-mode="6">SOCD / AD Cancel</button></div>');
   $('pair-mode').closest('label').style.setProperty('display','none');
   $('pair-second').closest('label').style.setProperty('display','none');
-  for(const slot of snapCard.querySelectorAll('[data-pair-slot]'))slot.onclick=()=>{if(!selectedId)return;const select=$('pair-'+slot.dataset.pairSlot);select.value=selectedId;select.dispatchEvent(new Event('change'));syncProgrammingSlots();};
+  for(const slot of snapCard.querySelectorAll('[data-pair-slot]'))slot.onclick=()=>setProgrammingSlot('pair-'+slot.dataset.pairSlot);
   for(const button of snapCard.querySelectorAll('[data-pair-mode]'))button.onclick=()=>{$('pair-mode').value=button.dataset.pairMode;syncProgrammingSlots();};
  }
  for(const id of ['dks-source','dks-target','pair-first','pair-second','pair-mode'])$(id)?.addEventListener('change',syncProgrammingSlots);
@@ -228,7 +252,7 @@ function clearKeyboardSelection(){
 let uiPage='home';
 function navigateUI(page){
  if(busy)return false;
- clearKeyboardSelection();
+ clearKeyboardSelection();setProgrammingSlot(null);
  discardLightingDraft();showDeviceSettings();showSelected();
  fillRemap();fillLayer();fillMedia();fillModify();fillHotKey();showPairState();showDksState();
  for(const panel of [hePanel,advancedPanel,remapPanel,pendingPanel,calibrationPanel,lightingPanel,settingsPanel])panel.hidden=true;
@@ -254,7 +278,14 @@ for(const panel of [remapPanel,advancedPanel])panel.querySelector('[data-action=
 // Keyboard selection also targets Programming and Single Light controls.
 $('keyboard').addEventListener('click',event=>{
  const key=event.target.closest('.key');if(!key||busy)return;
- if(uiPage==='programming')syncProgrammingSelection();
+ if(uiPage==='programming'){
+  if(programmingSlot){
+   const select=$(programmingSlot);select.value=key.dataset.id;select.dispatchEvent(new Event('change'));
+   setProgrammingSlot(null);syncProgrammingSlots();
+   return;
+  }
+  syncProgrammingSelection();
+ }
  if(uiPage==='lighting'){
  const select=$('single-keys');
  for(const option of select.options)if(option.value===key.dataset.id)option.selected=!option.selected;

@@ -355,3 +355,51 @@ test('calibration reset rejects a non-baseline readback', async () => {
   };
   await assert.rejects(() => adapter.resetCalibration(), /readback mismatch/);
 });
+
+test('reset all programming sends a reset for every visible key and verifies Standard', async () => {
+  const raw = programmingFixture();
+  const sections = new Map([[2, raw], [4, Buffer.from(raw)]]);
+  let writes = 0;
+  const adapter = new BrowserAdapter();
+  adapter.device = {
+    readInit(kind) { return Buffer.from(sections.get(kind)); },
+    send(packet) {
+      writes++; assert.equal(packet[0], 8); assert.equal(packet[1], 3); assert.equal(packet[2], 2);
+      const target = packet[3] ? 4 : 2;
+      const offset = 8 + (packet[6] * 14 + packet[7]) * 68;
+      sections.get(target).fill(0, offset, offset + 68);
+    }
+  };
+  const result = await adapter.resetAllProgramming({ layer: 0 });
+  assert.equal(result.verified, true);
+  assert.equal(result.resetCount, 64);
+  assert.equal(writes, 64);
+});
+
+test('reset all programming rejects an unknown profile layer', async () => {
+  const adapter = new BrowserAdapter();
+  adapter.device = { readInit() { throw new Error('unexpected device access'); } };
+  await assert.rejects(() => adapter.resetAllProgramming({ layer: 2 }), /Select M1 or M2/);
+});
+
+test('calibrate selected keys stores multiple ids in the browser session', async () => {
+  const before = Buffer.alloc(420);
+  const sent = [];
+  const adapter = new BrowserAdapter();
+  adapter.device = {
+    readInit() { return Buffer.from(before); },
+    send(packet) { sent.push(Buffer.from(packet)); }
+  };
+  const result = await adapter.calibrateSelectedKeys(['2:1', '2:3']);
+  assert.equal(result.started, true);
+  assert.deepEqual([...sent[0].subarray(0, 3)], [8, 48, 1]);
+  const state = await adapter.calibrationState();
+  assert.equal(state.active, true);
+  assert.deepEqual(state.selectedIds, ['2:1', '2:3']);
+});
+
+test('calibrate selected keys rejects unknown switches', async () => {
+  const adapter = new BrowserAdapter();
+  adapter.device = { readInit() { throw new Error('unexpected device access'); }, send() {} };
+  await assert.rejects(() => adapter.calibrateSelectedKeys(['bad']), /one or more physical switches/);
+});

@@ -337,7 +337,7 @@ const calibrationPanel=document.createElement('section');calibrationPanel.classN
 calibrationPanel.innerHTML='<small>HALL EFFECT</small><h2>Calibration</h2><p>Read the saved sensor ranges for every switch. Reading creates a local backup and preserves the current calibration.</p><button id="calibration-read">Refresh calibration</button><button id="calibration-reset" class="secondary">Reset all calibration</button><button id="calibration-start">Calibrate all</button><button id="calibration-selected">Calibrate selected key</button><button id="calibration-finish" hidden>Finish</button><button id="calibration-cancel" class="secondary" hidden>Cancel</button><p id="calibration-status" role="status" aria-live="polite">Not read yet.</p><p id="calibration-live" class="calibration-live" role="status" aria-live="polite"></p><p id="calibration-read-status" class="calibration-read-status">No successful read yet.</p><p>OK = a saved working sensor range. Not calibrated = factory/reset baseline 2000 / 2200. Error = an unexpected range. Empty = both values are zero.</p><p><strong>Reset all calibration</strong> restores every saved sensor range to 2000 / 2200. A backup is created before the reset. This operation cannot be undone automatically.</p><p><strong>Selected-key flow:</strong> tap a switch above, choose Calibrate selected key, press only that switch, choose Finish, then confirm the vendor save prompt. The keyboard may reconnect.</p>';
 pendingPanel.after(calibrationPanel);
 const calibrationMap=document.createElement('div');calibrationMap.id='calibration-map';calibrationMap.className='keyboard';calibrationMap.setAttribute('aria-label','Saved switch calibration');calibrationMap.hidden=true;$('keyboard').after(calibrationMap);
-let calibrationActive=false,calibrationStateKnown=false,calibrationPoll=null,calibrationLiveBaseline=null;
+let calibrationActive=false,calibrationStateKnown=false,calibrationPoll=null,calibrationLiveBaseline=null,calibrationSelectedIds=new Set();
 let calibrationPollBusy=false,calibrationPollGeneration=0,calibrationReadCount=0,calibrationPreviousRanges=null;
 function stopCalibrationPoll(){calibrationPollGeneration++;if(calibrationPoll){clearTimeout(calibrationPoll);calibrationPoll=null;}}
 function startCalibrationPoll(){
@@ -354,8 +354,10 @@ function startCalibrationPoll(){
 }
 function setCalibrationActive(value){calibrationActive=value;if(value)calibrationLiveBaseline=null;$('calibration-start').hidden=value;$('calibration-selected').hidden=value;$('calibration-finish').hidden=!value;$('calibration-cancel').hidden=!value;$('calibration-reset').disabled=value||!calibrationStateKnown;const live=$('calibration-live');if(live){live.classList.toggle('active',value);if(!value)live.textContent='';}}
 function updateSelectedCalibrationButton(){
-  $('calibration-selected').disabled=busy||!calibrationStateKnown||calibrationActive||!selectedId;
-  $('calibration-selected').title=selectedId?`Calibrate ${profile?.layout.find(k=>k.id===selectedId)?.label||selectedId}`:'Select a switch first';
+  const calibrationCount=calibrationSelectedIds.size||(selectedId?1:0);
+  $('calibration-selected').textContent=calibrationCount>1?'Calibrate selected keys':'Calibrate selected key';
+  $('calibration-selected').disabled=busy||!calibrationStateKnown||calibrationActive||!calibrationCount;
+  $('calibration-selected').title=calibrationCount>1?`Calibrate ${calibrationCount} selected switches`:(calibrationCount===1?`Calibrate ${profile?.layout.find(k=>k.id===selectedId)?.label||selectedId}`:'Select one or more switches first');
   $('calibration-start').disabled=busy||!calibrationStateKnown||calibrationActive;
   $('calibration-reset').disabled=busy||!calibrationStateKnown||calibrationActive;
   $('calibration-finish').disabled=busy||!calibrationStateKnown||!calibrationActive;
@@ -367,17 +369,18 @@ async function restoreCalibrationState(){
   try{
     const reply=await window.keyboard.calibrationState();
     if(!reply.ok)throw new Error(reply.error);
+    calibrationSelectedIds=new Set(reply.result.selectedIds||(reply.result.selectedId?[reply.result.selectedId]:[]));
     setCalibrationActive(reply.result.active);
     calibrationStateKnown=true;
+    updateSelectedCalibrationButton();
     if(reply.result.recoveryError){
       $('calibration-status').textContent='Previous calibration session could not be recovered: '+reply.result.recoveryError+'. Existing backups were retained. Refresh calibration to inspect current ranges.';
     }else if(reply.result.phase==='interrupted'){
       $('calibration-status').textContent='An interrupted calibration session was recovered. Device calibration state is unknown. Refresh calibration to compare saved ranges with the retained backup. No command was sent automatically.';
     }
     if(reply.result.active){
-      const selected=reply.result.selectedId;
-      const label=profile?.layout.find(k=>k.id===selected)?.label||selected;
-      $('calibration-status').textContent='An active calibration session was restored.'+(selected?` Press only ${label}.`:'')+' Choose Finish or Cancel when ready.';
+      const names=[...calibrationSelectedIds].map(id=>profile?.layout.find(k=>k.id===id)?.label||id);
+      $('calibration-status').textContent='An active calibration session was restored.'+(names.length?` Press only ${names.join(', ')}.`:'')+' Choose Finish or Cancel when ready.';
       if(typeof startCalibrationPoll==='function')startCalibrationPoll();
     }else if(['finished','canceled'].includes(reply.result.phase)){
       $('calibration-status').textContent='Previous calibration '+(reply.result.phase==='finished'?'Finish':'Cancel')+' command was sent. Use Refresh calibration to verify saved ranges against the session backup.';
@@ -406,8 +409,8 @@ async function calibrationCommand(command){
     }else if(command===2){
       if(typeof stopCalibrationPoll==='function')stopCalibrationPoll();
       setCalibrationActive(false);
-      $('calibration-status').textContent='Finish command sent. Keyboard is restarting; reloading in 3 seconds...';
-      setTimeout(()=>window.location.reload(),3000);
+      $('calibration-status').textContent='Finish command sent. Keyboard is restarting; reloading in 6 seconds...';
+      setTimeout(()=>window.location.reload(),6000);
     }else{
       if(typeof stopCalibrationPoll==='function')stopCalibrationPoll();
       await new Promise(r=>setTimeout(r,1500));
@@ -432,10 +435,18 @@ $('calibration-reset').onclick=async()=>{
   finally{setBusy(false);updateSelectedCalibrationButton();}
 };
 $('calibration-selected').onclick=async()=>{
-  if(busy||!calibrationStateKnown||calibrationActive||!selectedId)return;
-  setBusy(true);$('calibration-status').textContent=`Starting selected-key calibration for ${profile?.layout.find(k=>k.id===selectedId)?.label||selectedId}...`;
-  try{const reply=await window.keyboard.calibrateSelected(selectedId);if(!reply.ok)throw new Error(reply.error);setCalibrationActive(true);$('calibration-status').textContent=`Selected-key calibration started for ${profile?.layout.find(k=>k.id===selectedId)?.label||selectedId}. Press only this key, then choose Finish.`;startCalibrationPoll();}
-  catch(error){$('calibration-status').textContent=error.message;}finally{setBusy(false);updateSelectedCalibrationButton();}
+  const ids=[...calibrationSelectedIds];if(!ids.length&&selectedId)ids.push(selectedId);
+  if(busy||!calibrationStateKnown||calibrationActive||!ids.length)return;
+  const names=ids.map(id=>profile?.layout.find(k=>k.id===id)?.label||id);
+  setBusy(true);$('calibration-status').textContent=`Starting calibration for ${names.join(', ')}...`;
+  try{
+    const reply=await window.keyboard.calibrateSelectedKeys(ids);
+    if(!reply.ok)throw new Error(reply.error);
+    setCalibrationActive(true);
+    $('calibration-status').textContent=ids.length===1?`Selected-key calibration started for ${names[0]}. Press only this key, then choose Finish.`:`Calibration started for ${ids.length} switches: ${names.join(', ')}. Press only the selected switches, then choose Finish.`;
+    startCalibrationPoll();
+  }catch(error){$('calibration-status').textContent=error.message;}
+  finally{setBusy(false);updateSelectedCalibrationButton();}
 };
 $('calibration-finish').onclick=()=>{
   const prompt='Calibration finished, save calibration values?\n\nSaved values will automatically restart the keyboard.';
@@ -463,7 +474,7 @@ async function refreshCalibration(silent=false,generation){
       const record=data.records[physical.row*14+physical.col];
       const changed=calibrationActive&&changedIds.has(physical.id),previous=changed?changeInfo.get(physical.id):null;
       const key=document.createElement('button');key.type='button';key.className='calibration-key';key.dataset.id=physical.id;key.dataset.state=record.rangeStatus;
-      if(physical.id===selectedId)key.classList.add('chosen');
+      if(calibrationSelectedIds.has(physical.id))key.classList.add('chosen');
       if(changed)key.classList.add('changed');
       key.style.left=`${3+physical.x/680*94}%`;key.style.top=`${18+physical.y*1.65}px`;key.style.width=`${physical.width/680*94}%`;
       for(const value of [physical.label||'Space',record.rangeStatus==='ok'?'OK':record.rangeStatus,`${record.min} / ${record.max}`]){const label=document.createElement('span');label.textContent=value;key.appendChild(label);}
@@ -486,19 +497,23 @@ async function refreshCalibration(silent=false,generation){
       const cancel=result.cancelVerified===true?' Cancel verified: saved calibration unchanged.':result.cancelVerified===false?' Cancel verification failed: saved calibration differs from the backup.':'';
       if(!silent)$('calibration-status').textContent+=` Changed switches: ${names}. Unchanged: ${result.unchangedKeyCount}/${data.layout.length}. Other changed records: ${result.hiddenRecordChanges}.${cancel}`;
       if(!silent&&result.selectedScope){
-        const scope=result.selectedScope;
-        $('calibration-status').textContent+=scope.verified?' Selected-key calibration verified: only the selected range changed; all other records are unchanged.':!scope.otherRecordsUnchanged?' Selected-key isolation failed: other calibration records changed. See the comparison report.':!scope.selectedChanged?' Selected range did not change; a new calibration result is not verified.':' Selected-key calibration is not yet verified.';
+        const scope=result.selectedScope,scopeLabel=scope.ids?.length>1?`${scope.ids.length} selected ranges`:'the selected range';
+        $('calibration-status').textContent+=scope.verified?` Calibration verified: only ${scopeLabel} changed; all other records are unchanged.`:!scope.otherRecordsUnchanged?' Calibration isolation failed: other calibration records changed. See the comparison report.':!scope.selectedChanged?` ${scopeLabel} did not change; a new calibration result is not verified.`:' Calibration is not yet verified.';
         $('calibration-status').textContent+=' Report: '+result.report;
       }
     }
 }
 function selectCalibrationKey(id){
   if(busy)return;
-  const physical=profile?.layout.find(k=>k.id===id);
-  selectedId=id;selectedIds=new Set([id]);
-  if(physical)showSelected();else refreshSelection();
-  for(const key of $('calibration-map').querySelectorAll('.calibration-key'))key.classList.toggle('chosen',key.dataset.id===id);
-  $('calibration-status').textContent=`${physical?.label||id} selected. Choose Calibrate selected key to calibrate only this switch.`;
+  if(calibrationSelectedIds.has(id))calibrationSelectedIds.delete(id);else calibrationSelectedIds.add(id);
+  selectedId=[...calibrationSelectedIds].pop()||'';
+  selectedIds=new Set(calibrationSelectedIds);
+  if(selectedId)showSelected();else refreshSelection();
+  for(const key of $('calibration-map').querySelectorAll('.calibration-key'))key.classList.toggle('chosen',calibrationSelectedIds.has(key.dataset.id));
+  const count=calibrationSelectedIds.size;
+  if(!count)$('calibration-status').textContent='Tap one or more switches to select them for calibration.';
+  else if(count===1){const physical=profile?.layout.find(k=>k.id===selectedId);$('calibration-status').textContent=`${physical?.label||selectedId} selected. Choose Calibrate selected key.`;}
+  else $('calibration-status').textContent=`${count} switches selected. Choose Calibrate selected keys.`;
   updateSelectedCalibrationButton();
 }
 $('calibration-read').onclick=async()=>{
@@ -570,7 +585,7 @@ function setBusy(value) {
   const lockSource=$('remap-source').value;
   const lockKey=programming?.keys.find(k=>`${k.row}:${k.col}`===lockSource);
   for(const id of ['key-enabled','key-enabled-apply'])$(id).disabled=value||!lockKey||![0,2,3,4,5,6].includes(lockKey.mode);
-  $('programming-reset').disabled=value||!programming;
+  $('programming-reset').disabled=value||!programming;if($('programming-reset-all'))$('programming-reset-all').disabled=value||!programming;
   $('device-fps').disabled=value||!deviceSettings?.canEditFps;
   $('device-mode-apply').disabled=value||!deviceSettings?.canEditPerformance;
  settingsPanel.querySelectorAll('[data-performance-mode]').forEach(button=>{button.disabled=value||!deviceSettings?.canEditPerformance;});
