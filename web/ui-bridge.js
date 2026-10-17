@@ -67,7 +67,7 @@ for(const [name,nodes] of Object.entries(lightingGroups)){const wrapper=document
   // Back Light brightness belongs to the Back Light controls. Keep the existing
   // nodes and IDs so renderer handlers and device readback remain intact.
   const content=document.createElement('div');content.className='lighting-back-content';
-  const colours=document.createElement('section');colours.className='lighting-colours-card';colours.innerHTML='<h3>Colours</h3>';colours.append(color);
+  const colours=document.createElement('section');colours.className='lighting-colours-card';colours.innerHTML='<h3>Colors</h3>';colours.append(color);
   const effects=document.createElement('section');effects.className='lighting-effects-card';effects.innerHTML='<h3>Effects</h3>';
   const effectNodes=[...back.children].filter(node=>node!==service&&!title.includes(node)&&node!==global&&node!==color);
   effects.append(global,...effectNodes.filter(node=>node!==global));
@@ -102,7 +102,7 @@ for(const [name,nodes] of Object.entries(lightingGroups)){const wrapper=document
   const underSyncNote=underSyncApply?.nextElementSibling;
   if(underHeading&&underColourControls&&underMode){
    const content=document.createElement('div');content.className='lighting-under-content';
-   const colours=document.createElement('section');colours.className='lighting-under-colours-card';colours.innerHTML='<h3>Colours</h3>';
+   const colours=document.createElement('section');colours.className='lighting-under-colours-card';colours.innerHTML='<h3>Colors</h3>';
    const effects=document.createElement('section');effects.className='lighting-under-effects-card';effects.innerHTML='<h3>Effects</h3>';
    const modeBlock=document.createElement('div');modeBlock.className='lighting-under-mode';
    [underCurrent,underMode,underModeApply,underStatus].filter(Boolean).forEach(node=>modeBlock.append(node));
@@ -125,6 +125,32 @@ for(const [name,nodes] of Object.entries(lightingGroups)){const wrapper=document
    if(syncInput)syncInput.addEventListener('change',()=>{if(!busy&&!syncInput.disabled)underSyncApply?.click();});
   }
  }
+ // Single Light mirrors the Back/Under composition with Colors and Brightness cards.
+ {
+  const single=lightingWrappers.single;
+  const activeLabel=single.querySelector('#single-active')?.closest('label');
+  const activeApply=single.querySelector('#single-active-apply');
+  const controls=single.querySelector('#single-keys')?.closest('.controls');
+  const read=single.querySelector('#single-read');
+  const apply=single.querySelector('#single-apply');
+  const status=single.querySelector('#single-status');
+  const note=status?.nextElementSibling;
+  const enabledLabel=single.querySelector('#single-enabled')?.closest('label');
+  const brightnessSection=single.querySelector('#single-brightness')?.closest('.lighting-section');
+  if(enabledLabel)enabledLabel.classList.add('toggle-row');
+  if(controls&&brightnessSection){
+   const content=document.createElement('div');content.className='lighting-single-content';
+   const colours=document.createElement('section');colours.className='lighting-single-colours-card';colours.innerHTML='<h3>Colors</h3>';
+   const brightness=document.createElement('section');brightness.className='lighting-single-brightness-card';brightness.innerHTML='<h3>Brightness</h3>';
+   [controls,read,apply,status,note].filter(Boolean).forEach(node=>colours.append(node));
+   const brightnessTitle=brightnessSection.querySelector('h3');if(brightnessTitle)brightnessTitle.hidden=true;
+   brightness.append(brightnessSection);
+   const service=document.createElement('div');service.className='single-service-controls';service.hidden=true;service.setAttribute('aria-hidden','true');
+   [activeLabel,activeApply].filter(Boolean).forEach(node=>service.append(node));
+   content.append(colours,brightness);
+   single.replaceChildren(content,service);
+  }
+ }
 }
 let uiPage='home';
 function navigateUI(page){
@@ -141,20 +167,24 @@ function navigateUI(page){
  programmingTabs.hidden=page!=='programming';
  if(page==='range')hePanel.hidden=false;
  if(page==='programming'){selectedIds=new Set([selectedId]);refreshSelection();programmingTab(programmingView);}
- if(page==='lighting'){lightingPanel.hidden=false;lightingBrightness();}
+ if(page==='lighting'){lightingPanel.hidden=false;lightingBrightness();syncSingleKeyHighlights();}
  if(page==='settings'){settingsPanel.hidden=false;deviceSettingsAction();}
  if(page==='calibration'){calibrationPanel.hidden=false;restoreCalibrationState();}
  window.dispatchEvent(new CustomEvent('m6-page',{detail:page}));window.scrollTo(0,0);return true;
 }
-function lightingTab(tab){if(uiPage==='lighting'&&!busy)discardLightingDraft();for(const [name,nodes] of Object.entries(lightingGroups)){lightingWrappers[name].hidden=name!==tab;for(const node of nodes)node.hidden=false;}const active=lightingGroups[tab]?.[0];if(active){active.classList.remove('tab-enter');void active.offsetWidth;active.classList.add('tab-enter');}}
+function syncSingleKeyHighlights(){const select=$('single-keys');if(!select)return;const ids=new Set([...select.selectedOptions].map(option=>option.value));for(const key of $('keyboard').querySelectorAll('.key'))key.classList.toggle('key-selected',uiPage==='lighting'&&ids.has(key.dataset.id));}
+function lightingTab(tab){if(uiPage==='lighting'&&!busy)discardLightingDraft();for(const [name,nodes] of Object.entries(lightingGroups)){lightingWrappers[name].hidden=name!==tab;for(const node of nodes)node.hidden=false;}const active=lightingGroups[tab]?.[0];if(active){active.classList.remove('tab-enter');void active.offsetWidth;active.classList.add('tab-enter');}syncSingleKeyHighlights();}
+$('single-keys').addEventListener('change',syncSingleKeyHighlights);
 for(const panel of [remapPanel,advancedPanel])panel.querySelector('[data-action="programming-back"]').onclick=()=>navigateUI('home');
 // Keyboard selection also targets Programming and Single Light controls.
 $('keyboard').addEventListener('click',event=>{
  const key=event.target.closest('.key');if(!key||busy)return;
  if(uiPage==='programming')syncProgrammingSelection();
  if(uiPage==='lighting'){
- const select=$('single-keys');for(const option of select.options)option.selected=(event.ctrlKey||event.shiftKey)?(option.value===key.dataset.id?!option.selected:option.selected):option.value===key.dataset.id;
+ const select=$('single-keys');
+ for(const option of select.options)if(option.value===key.dataset.id)option.selected=!option.selected;
  select.dispatchEvent(new Event('change'));
+ syncSingleKeyHighlights();
  }
 });
 window.m6UI={navigate:navigateUI,lightingTab,programmingTab,refresh:()=>{if(!busy){loadProfile();}},snapshot:()=>({busy,connected:!!profile,layer,selectedLabel:profile?.layout.find(k=>k.id===selectedId)?.label||'Select a key',page:uiPage,back:lightingState,under:underLightState,single:singleState,brightness:lightingSavedBrightness})};
@@ -176,14 +206,20 @@ for(const id of ['remap-source','modify-source','media-source','layer-source','d
 $('key-enabled').closest('label')?.classList.add('toggle-row');
 // Drag paints the physical keys; single clicks retain the normal toggle behavior.
 let drag=null,suppressClick=false;
-$('keyboard').addEventListener('pointerdown',e=>{const key=e.target.closest('.key');if(uiPage!=='range'||busy||e.button!==0||!key)return;drag={id:key.dataset.id,x:e.clientX,y:e.clientY,ids:new Set([key.dataset.id]),active:false};});
+$('keyboard').addEventListener('pointerdown',e=>{const key=e.target.closest('.key');if(!['range','lighting'].includes(uiPage)||busy||e.button!==0||!key)return;drag={id:key.dataset.id,x:e.clientX,y:e.clientY,ids:new Set([key.dataset.id]),active:false};});
 window.addEventListener('pointermove',e=>{
  if(!drag||busy)return;
  if(Math.hypot(e.clientX-drag.x,e.clientY-drag.y)>5)drag.active=true;
  if(!drag.active)return;
- const key=document.elementFromPoint(e.clientX,e.clientY)?.closest('#keyboard .key');if(key)drag.ids.add(key.dataset.id);
+ const key=document.elementFromPoint(e.clientX,e.clientY)?.closest('#keyboard .key');if(!key)return;
+ if(uiPage==='lighting'){
+  const select=$('single-keys'),option=[...select.options].find(o=>o.value===key.dataset.id);
+  if(option&&!option.selected){option.selected=true;select.dispatchEvent(new Event('change'));}
+  return;
+ }
+ drag.ids.add(key.dataset.id);
  selectedId=drag.id;selectedIds=new Set(drag.ids);refreshSelection();
 });
-window.addEventListener('pointerup',()=>{if(drag?.active){suppressClick=true;showSelected();setTimeout(()=>{suppressClick=false;},0);}drag=null;});
+window.addEventListener('pointerup',()=>{if(drag?.active){suppressClick=true;if(uiPage==='range')showSelected();setTimeout(()=>{suppressClick=false;},0);}drag=null;});
 window.addEventListener('pointercancel',()=>{drag=null;});
 $('keyboard').addEventListener('click',e=>{if(suppressClick){e.preventDefault();e.stopImmediatePropagation();}},true);

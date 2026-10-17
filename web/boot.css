@@ -61,3 +61,18 @@ header .header-actions{display:none!important}
 .performance-modes button[aria-pressed="true"]{background:#008cff!important;color:#fff!important;box-shadow:0 0 0 2px #45b5ff!important;outline:0}
 .performance-card .actions{margin-top:0;gap:10px}
 .performance-card .actions button{padding:10px 14px;font-size:13px}
+
+.lighting-single-card{background:transparent!important;border:0!important;padding:0!important}
+.lighting-single-content{display:grid;grid-template-columns:minmax(230px,.72fr) minmax(420px,1.5fr);gap:16px;align-items:start}
+.lighting-single-colours-card,.lighting-single-brightness-card{background:#202124;border:1px solid #303136;border-radius:16px;padding:18px;min-width:0}
+.lighting-single-colours-card>h3,.lighting-single-brightness-card>h3{margin:0 0 16px;font-size:16px;color:#f0f0f2}
+.lighting-single-colours-card .controls{display:block}
+.lighting-single-colours-card .controls label{display:block;margin:10px 0}
+.lighting-single-colours-card .controls label:has(#single-enabled){display:flex!important;align-items:center;gap:10px}
+.lighting-single-colours-card #single-keys{width:100%;min-height:170px}
+.lighting-single-colours-card #single-color{width:100%;height:180px}
+.lighting-single-brightness-card .lighting-section{border:0;background:transparent;padding:0;margin:0}
+.lighting-single-brightness-card .lighting-section h3{display:none}
+.single-service-controls{display:none!important}
+body[data-page=lighting] .key.key-selected{background:#093e65;border-color:#008cff;box-shadow:0 0 0 1px #008cff}
+@media(max-width:900px){.lighting-single-content{grid-template-columns:1fr}}
