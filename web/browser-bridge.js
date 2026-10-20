@@ -1,8 +1,20 @@
 'use strict';
 // Browser transport: all device calls stay in the page and use WebHID.
-const adapterReady=import('./browser-backend.js?v=20261017-34').then(m=>new (m.BrowserAdapter||m.default.BrowserAdapter)());
+const adapterReady=import('./browser-backend.js?v=20261020-1').then(m=>new (m.BrowserAdapter||m.default.BrowserAdapter)());
 const unsupported=name=>({ok:false,error:`${name} is not available in this browser build yet.`});
-async function invoke(name,args=[]){try{const adapter=await adapterReady;if(typeof adapter[name]!=='function')return unsupported(name);return {ok:true,result:await adapter[name](...args)};}catch(error){return {ok:false,error:error.message};}}
+const persistentMethods=new Set(['saveSelected','applyAll','importHe','setPair','setRemap','setHotKey','setMedia','setModify','setLayerAssignment','resetProgrammingKey','resetAllProgramming','setKeyEnabled','setDks','setDksAll','setDksWasd','presetOff','quickPreset','returnToStandard','setBackLightMode','setBackLightEnabled','setBackLightColor','setBackLightSpeed','setBackLightDirection','setBrightness','setUnderLightMode','setUnderLightEnabled','setUnderLightSync','setUnderLightBrightness','setUnderLightColor','setUnderLightSpeed','setSingleLight','setFpsEnhance','setAutoCalibration','setAutoLightOff','setHighlight','setSaturation']);
+async function invoke(name,args=[]){
+ let applied=false;
+ try{
+  const adapter=await adapterReady;
+  if(typeof adapter[name]!=='function')return unsupported(name);
+  const result=await adapter[name](...args);
+  applied=true;
+  if(!persistentMethods.has(name))return {ok:true,result};
+  const persistence=await adapter.saveToDeviceMemory();
+  return {ok:true,result:result&&typeof result==='object'&&!Array.isArray(result)?{...result,persistence}:result};
+ }catch(error){return {ok:false,error:applied?`${name} was applied but could not be saved to device memory: ${error.message}`:error.message};}
+}
 async function exportHe(layer){const reply=await invoke('exportHe',[layer]);if(!reply.ok)return reply;const blob=new Blob([JSON.stringify(reply.result,null,2)+'\n'],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`M6-Lite-HE-M${layer+1}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),0);return {ok:true,result:{exported:true,document:reply.result}};}
 async function importHe(layer){const input=document.createElement('input');input.type='file';input.accept='.json,application/json';return new Promise(resolve=>{input.onchange=async()=>{const file=input.files?.[0];if(!file)return resolve({ok:true,result:{canceled:true}});if(file.size>128*1024)return resolve({ok:false,error:'HE profile file is too large'});try{const document=JSON.parse((await file.text()).replace(/^\uFEFF/,''));resolve(await invoke('importHe',[layer,document]));}catch(error){resolve({ok:false,error:error.message});}};input.click();});}
 const methods=['connect','autoConnect','reconnect','readProfile','readProgramming','saveSelected','applyAll','saveToDeviceMemory','setPair','setRemap','setHotKey','setMedia','setModify','setLayerAssignment','resetProgrammingKey','resetAllProgramming','setKeyEnabled','setDks','setDksAll','setDksWasd','presetOff','quickPreset','readBackLight','setBackLightMode','setBackLightEnabled','setBackLightColor','setBackLightSpeed','setBackLightDirection','readBrightness','setBrightness','readUnderLight','setUnderLightMode','setUnderLightEnabled','setUnderLightSync','setUnderLightBrightness','setUnderLightColor','setUnderLightSpeed','readSingleLight','setSingleLight','calibrationState','readCalibration','calibrationCommand','calibrateSelected','calibrateSelectedKeys','resetCalibration','readDeviceSettings','setFpsEnhance','setPerformanceMode','setAutoCalibration','setAutoLightOff','setHighlight','setSaturation','returnToStandard'];

@@ -60,7 +60,7 @@
     document.body.dataset.bootState='connect';
     addBrand();
     addTitle('Connect your keyboard');
-    addText('Plug in your M6 Lite+ over USB and choose it in the browser prompt. Settings stay on this device until you save them to the keyboard.');
+    addText('Plug in your M6 Lite+ over USB and choose it in the browser prompt. Changes are saved to the keyboard automatically.');
     addText('Already paired? We are checking for it automatically.','boot-note');
     const status=document.createElement('p');status.className='boot-status';status.id='boot-status';status.setAttribute('role','status');status.setAttribute('aria-live','polite');
     const button=document.createElement('button');button.type='button';button.className='boot-button';button.id='boot-connect';button.textContent='Connect keyboard';

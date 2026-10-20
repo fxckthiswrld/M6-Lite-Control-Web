@@ -67,8 +67,8 @@
         "Bottom",
         "Trigger",
         "Release",
-        "selected-key Save",
-        "Apply to all",
+        "Automatic selected-key save",
+        "Multi-key selection",
         "Restart"
       ]
     },
@@ -134,7 +134,7 @@
         "Group color",
         "Custom RGB",
         "Brightness",
-        "Save selected key or group"
+        "Automatic save for selected keys"
       ]
     },
     {
@@ -193,7 +193,7 @@
     "persistentSave": "verified-power-cycle",
     "demo": "not-planned",
     "heJson": "verified",
-    "heImmediateApply": "explicit-apply-only",
+    "heImmediateApply": "automatic-on-change",
     "heGroupApply": "verified"
   }
 }

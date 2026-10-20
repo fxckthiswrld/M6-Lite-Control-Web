@@ -24,7 +24,7 @@ function programmingTab(tab){if(busy)return;fillRemap();fillLayer();fillMedia();
  if(uiPage==='programming'){remapPanel.hidden=false;advancedPanel.hidden=false;for(const panel of [remapPanel,advancedPanel]){panel.classList.remove('tab-enter');void panel.offsetWidth;panel.classList.add('tab-enter');}}
 }
 const programmingLayout=document.createElement('div');programmingLayout.id='programming-layout';
-const programmingHelp=document.createElement('section');programmingHelp.className='programming-help-card';programmingHelp.innerHTML='<small>PROGRAMMING</small><h3>Program your keys</h3><p>Select a physical key on the keyboard above, then choose its action in one of the panels.</p><p>Each panel expands to show the available settings. Apply writes the selected key and verifies the result on the keyboard.</p><div class="programming-help-step"><b>1</b><span>Select a source key above</span></div><div class="programming-help-step"><b>2</b><span>Choose an action or target key</span></div><div class="programming-help-step"><b>3</b><span>Apply and read back the setting</span></div>';
+const programmingHelp=document.createElement('section');programmingHelp.className='programming-help-card';programmingHelp.innerHTML='<small>PROGRAMMING</small><h3>Program your keys</h3><p>Select a physical key on the keyboard above, then choose its action in one of the panels.</p><p>Each panel expands to show the available settings. Changes are written automatically and verified on the keyboard.</p><div class="programming-help-step"><b>1</b><span>Select a source key above</span></div><div class="programming-help-step"><b>2</b><span>Choose an action or target key</span></div><div class="programming-help-step"><b>3</b><span>The setting is written and read back automatically</span></div>';
 const programmingWorkspace=document.createElement('div');programmingWorkspace.className='programming-workspace';
 const programmingOverview=document.createElement('div');programmingOverview.className='programming-overview';
 const programmingGroupBar=document.createElement('div');programmingGroupBar.className='programming-group-bar';programmingGroupBar.setAttribute('role','tablist');programmingGroupBar.setAttribute('aria-label','Programming group');
@@ -129,7 +129,7 @@ for(const select of programmingLayout.querySelectorAll('select'))if(!programming
 const settingsFooter=document.createElement('div');settingsFooter.id='settings-footer';settingsPanel.append(settingsFooter);
 const deviceData=document.createElement('section');deviceData.id='device-data';deviceData.className='device-data';
 const deviceDataHeading=document.createElement('h3');deviceDataHeading.textContent='Device data';
-const deviceDataText=document.createElement('p');deviceDataText.textContent='Read the current configuration from the keyboard or save applied settings to device memory.';
+const deviceDataText=document.createElement('p');deviceDataText.textContent='Reads and saves happen automatically when you open a page or change a setting.';
 const deviceDataActions=document.createElement('div');deviceDataActions.className='actions device-data-actions';
 const deviceDataStatus=document.createElement('p');deviceDataStatus.id='device-data-status';deviceDataStatus.setAttribute('role','status');deviceDataStatus.setAttribute('aria-live','polite');
 for(const id of ['read','save-memory']){const button=document.getElementById(id);if(button)deviceDataActions.append(button);}
@@ -278,8 +278,9 @@ function navigateUI(page){
  const calibrationMap=$('calibration-map');if(calibrationMap)calibrationMap.hidden=page!=='calibration';
  document.querySelector('.key-legend').hidden=page!=='range';lightingTabs.hidden=page!=='lighting';
  programmingTabs.hidden=page!=='programming';
- if(page==='range')hePanel.hidden=false;
- if(page==='programming'){selectedIds=selectedId?new Set([selectedId]):new Set();refreshSelection();programmingTab(programmingView);}
+ if(page==='home'&&profile&&!busy)loadProfile(layer);
+ if(page==='range'){hePanel.hidden=false;if(profile&&!busy)loadProfile(layer);}
+ if(page==='programming'){selectedIds=selectedId?new Set([selectedId]):new Set();refreshSelection();programmingTab(programmingView);if(profile&&!busy)loadProfile(layer);}
  if(page==='lighting'){lightingPanel.hidden=false;lightingBrightness();syncSingleKeyHighlights();}
  if(page==='settings'){settingsPanel.hidden=false;deviceSettingsAction();}
  if(page==='calibration'){calibrationPanel.hidden=false;restoreCalibrationState().then(()=>{refreshCalibration(calibrationActive).catch(error=>{if(!calibrationActive)$('calibration-status').textContent=error.message;});});}
@@ -294,8 +295,9 @@ $('keyboard').addEventListener('click',event=>{
  const key=event.target.closest('.key');if(!key||busy)return;
  if(uiPage==='programming'){
   if(programmingSlot){
-   const select=$(programmingSlot);select.value=key.dataset.id;select.dispatchEvent(new Event('change'));
+   const slot=programmingSlot,select=$(slot);select.value=key.dataset.id;select.dispatchEvent(new Event('change'));
    setProgrammingSlot(null);syncProgrammingSlots();
+   if(slot.startsWith('pair-'))setTimeout(()=>$('pair-apply').click(),50);
    return;
   }
   syncProgrammingSelection();
@@ -312,7 +314,7 @@ document.addEventListener('pointerdown',event=>{
  if(event.target.closest('button,.key,input,select,textarea,label,a,[role=button],[role=tab]'))return;
  clearKeyboardSelection();
 });
-window.m6UI={navigate:navigateUI,lightingTab,programmingTab,refresh:()=>{if(!busy){loadProfile();}},snapshot:()=>({busy,connected:!!profile,layer,selectedLabel:profile?.layout.find(k=>k.id===selectedId)?.label||'Select a key',page:uiPage,back:lightingState,under:underLightState,single:singleState,brightness:lightingSavedBrightness})};
+window.m6UI={navigate:navigateUI,lightingTab,programmingTab,refresh:async()=>{if(busy)return;await loadProfile(layer);const page=document.body.dataset.page;if(page==='lighting')lightingBrightness().catch(()=>{});else if(page==='settings')deviceSettingsAction();else if(page==='calibration')refreshCalibration(true).catch(()=>{});},snapshot:()=>({busy,connected:!!profile,layer,selectedLabel:profile?.layout.find(k=>k.id===selectedId)?.label||'Select a key',page:uiPage,back:lightingState,under:underLightState,single:singleState,brightness:lightingSavedBrightness})};
 navigateUI('home');
 // Initial reads can be in flight when the shell mounts.
 document.body.dataset.page='home';homePanel.hidden=false;hePanel.hidden=true;presetPanel.hidden=true;programmingLayout.hidden=true;selectionBar.hidden=true;profileBar.hidden=true;lightingTabs.hidden=true;keyStateSummary.hidden=true;document.querySelector('.key-legend').hidden=true;
@@ -329,7 +331,7 @@ function syncProgrammingSelection(){
  syncProgrammingSlots();
 }
 $('select-multiple').hidden=true;
-selectionBar.querySelector('p').textContent='Click keys to add or remove them from the selection. Drag across keys to select a group. Apply changes only the selected switches.';
+selectionBar.querySelector('p').textContent='Click keys to add or remove them from the selection. Drag across keys to select a group. Changes write automatically to the selected switches.';
 for(const id of ['remap-source','modify-source','media-source','layer-source','dks-source','hotkey-source','pair-first','modify-target'])$(id).closest('label').hidden=true;
 $('key-enabled').closest('label')?.classList.add('toggle-row');
 // Drag paints the physical keys; single clicks retain the normal toggle behavior.
@@ -351,3 +353,13 @@ window.addEventListener('pointermove',e=>{
 window.addEventListener('pointerup',()=>{if(drag?.active){suppressClick=true;if(uiPage==='range')showSelected();setTimeout(()=>{suppressClick=false;},0);}drag=null;});
 window.addEventListener('pointercancel',()=>{drag=null;});
 $('keyboard').addEventListener('click',e=>{if(suppressClick){e.preventDefault();e.stopImmediatePropagation();}},true);
+function hideLegacyRefresh(){
+ const footer=document.getElementById('settings-footer');if(!footer)return;
+ for(const button of footer.querySelectorAll('button'))if(/refresh/i.test(button.textContent||'')){button.hidden=true;button.style.display='none';}
+ const note=[...footer.querySelectorAll('p')].find(node=>/refresh reads/i.test(node.textContent||''));
+ const message='Reads and saves happen automatically when you open a page or change a setting.';
+ if(note&&note.textContent!==message)note.textContent=message;
+}
+setTimeout(hideLegacyRefresh,0);
+const settingsFooterNode=document.getElementById('settings-footer');
+if(settingsFooterNode)new MutationObserver(hideLegacyRefresh).observe(settingsFooterNode,{childList:true,subtree:true});
