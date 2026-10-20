@@ -4,7 +4,7 @@ function updateLightingSlider(id,valueId){const input=$(id),output=$(valueId);if
 function speedToPercent(value,min,max){if(!Number.isFinite(value)||!Number.isFinite(min)||!Number.isFinite(max)||max<=min)return '';return Math.round((value-min)*100/(max-min));}
 function percentToSpeed(percent,min,max){if(!Number.isFinite(percent)||!Number.isFinite(min)||!Number.isFinite(max)||max<=min)return min;return Math.round(min+(percent/100)*(max-min));}
 const travelFields = ['head','bottom','trigger','release','fixedDown','fixedUp'];
-let layer = 0, selectedId = '2:1', profile = null, busy = false;
+let layer = 0, selectedId = '2:1', profile = null, busy = false, heFieldsVisible = false;
 let deviceWasConnected = false, connectionRecoveryNeeded = false, recoveryTimer = null, recoveryInFlight = false, startupConnectInFlight = false, expectedDeviceRestart = false;
 let programming=null;
 let selectedIds=new Set(['2:1']),multipleSelection=false;
@@ -538,7 +538,7 @@ for(let i=0;i<2;i++) {
 hePanel.before(profileBar);
 const selectionBar=document.createElement('div');selectionBar.className='selection-bar';
 selectionBar.innerHTML='<button id="select-multiple" class="secondary" aria-pressed="false">Select multiple</button><button id="select-all-keys" class="secondary">Select all keys</button><button id="select-one-key" class="secondary">Keep one key</button><span id="selection-summary"></span><p>Click to select a switch. Use Select multiple or Ctrl / Command + click to add switches. Changes write automatically to the selected group.</p>';
-$('keyboard').before(selectionBar);
+$('keyboard').after(selectionBar);
 function refreshSelection(){
   const selectable=document.body.dataset.page!=='home';
   document.querySelectorAll('.key').forEach(b=>{const selected=selectable&&selectedIds.has(b.dataset.id);b.classList.toggle('chosen',selected);b.setAttribute('aria-pressed',String(selected));});
@@ -548,8 +548,8 @@ function refreshSelection(){
   $('save').title='Apply the displayed mode and its values to the selected switches';
 }
 $('select-multiple').onclick=()=>{multipleSelection=!multipleSelection;$('select-multiple').setAttribute('aria-pressed',String(multipleSelection));};
-$('select-all-keys').onclick=()=>{if(busy||!profile)return;selectedIds=new Set(profile.layout.map(k=>k.id));refreshSelection();};
-$('select-one-key').onclick=()=>{if(busy||!profile)return;selectedIds=new Set([selectedId]);refreshSelection();};
+$('select-all-keys').onclick=()=>{if(busy||!profile)return;selectedIds=new Set(profile.layout.map(k=>k.id));refreshSelection();collapseHeFields();};
+$('select-one-key').onclick=()=>{if(busy||!profile||!selectedId)return;selectedIds=new Set([selectedId]);refreshSelection();collapseHeFields();};
 const fileActions=document.createElement('div');fileActions.className='actions';
 fileActions.innerHTML='<button id="export-he" class="secondary">Export HE JSON</button><button id="import-he" class="secondary">Import HE JSON</button><span>HE settings only; import replaces the selected profile.</span>';
 hePanel.appendChild(fileActions);
@@ -610,13 +610,15 @@ function showSelected() {
   $('selected').textContent=physical.label;
   travelFields.forEach(f=>{$(f).value=key[f].toFixed(3);});
   $('rt').checked=key.rtOn;
-  $('mechanical-fields').hidden=key.rtOn;$('rt-fields').hidden=!key.rtOn;
+  updateHeFieldsVisibility();
   $('mode-mechanical').setAttribute('aria-pressed',String(!key.rtOn));$('mode-rt').setAttribute('aria-pressed',String(key.rtOn));
   const values=displayTravel(key);$('selected-release').textContent=values.release;$('selected-trigger').textContent=values.trigger;
   updateKeyValues();
   refreshSelection();
 }
 function displayTravel(key){return {trigger:(key.rtOn?key.trigger:key.fixedDown).toFixed(3),release:(key.rtOn?key.release:key.fixedUp).toFixed(3)};}
+function updateHeFieldsVisibility(){const visible=heFieldsVisible&&!!selectedId&&!!profile;$('mechanical-fields').hidden=!visible||$('rt').checked;$('rt-fields').hidden=!visible||!$('rt').checked;}
+function collapseHeFields(){heFieldsVisible=false;updateHeFieldsVisibility();}
 const keyStateSummary=document.createElement('p');keyStateSummary.id='key-state-summary';keyStateSummary.setAttribute('role','status');
 $('keyboard').after(keyStateSummary);
 function programmingBadge(assignment){
@@ -668,6 +670,7 @@ function drawKeyboard() {
     button.setAttribute('aria-label',key.label||'Space');
     button.onclick=event=>{
       if(busy||document.body.dataset.page==='home')return;
+      collapseHeFields();
       if(document.body.dataset.page==='range'||multipleSelection||event.ctrlKey||event.metaKey){
         if(selectedIds.has(key.id)){if(selectedIds.size===1)return;selectedIds.delete(key.id);if(key.id===selectedId){selectedId=[...selectedIds][0];showSelected();}}
         else selectedIds.add(key.id);
@@ -807,8 +810,10 @@ async function saveChanges(all=false) {
 $('save').onclick=()=>saveChanges();
 function changeMode(rtOn){
   if(busy||!profile)return;
+  if(!selectedId||!selectedIds.size){$('status').textContent='Select a switch first.';collapseHeFields();return;}
+  heFieldsVisible=true;
   $('rt').checked=rtOn;
-  $('mechanical-fields').hidden=rtOn;$('rt-fields').hidden=!rtOn;
+  updateHeFieldsVisibility();
   $('mode-mechanical').setAttribute('aria-pressed',String(!rtOn));$('mode-rt').setAttribute('aria-pressed',String(rtOn));
 }
 $('mode-mechanical').onclick=()=>changeMode(false);$('mode-rt').onclick=()=>changeMode(true);

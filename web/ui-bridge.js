@@ -262,6 +262,7 @@ function clearKeyboardSelection(){
  const select=$('single-keys');
  if(select){let changed=false;for(const option of select.options)if(option.selected){option.selected=false;changed=true;}if(changed)select.dispatchEvent(new Event('change'));}
  for(const id of ['selected','selected-release','selected-trigger']){const element=$(id);if(element)element.textContent='-';}
+ if(typeof collapseHeFields==='function')collapseHeFields();
 }
 let uiPage='home';
 function navigateUI(page){
@@ -349,6 +350,7 @@ window.addEventListener('pointermove',e=>{
  }
  drag.ids.add(key.dataset.id);
  selectedId=drag.id;selectedIds=new Set(drag.ids);refreshSelection();
+ collapseHeFields();
 });
 window.addEventListener('pointerup',()=>{if(drag?.active){suppressClick=true;if(uiPage==='range')showSelected();setTimeout(()=>{suppressClick=false;},0);}drag=null;});
 window.addEventListener('pointercancel',()=>{drag=null;});
