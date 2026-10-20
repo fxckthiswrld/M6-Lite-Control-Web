@@ -1,6 +1,6 @@
 'use strict';
 // Browser transport: all device calls stay in the page and use WebHID.
-const adapterReady=import('./browser-backend.js?v=20261020-9').then(m=>new (m.BrowserAdapter||m.default.BrowserAdapter)());
+const adapterReady=import('./browser-backend.js?v=20261020-10').then(m=>new (m.BrowserAdapter||m.default.BrowserAdapter)());
 const unsupported=name=>({ok:false,error:`${name} is not available in this browser build yet.`});
 const persistentMethods=new Set(['saveSelected','applyAll','importHe','setPair','setRemap','setHotKey','setMedia','setModify','setLayerAssignment','resetProgrammingKey','resetAllProgramming','setKeyEnabled','setDks','setDksAll','setDksWasd','presetOff','quickPreset','returnToStandard','setBackLightMode','setBackLightEnabled','setBackLightColor','setBackLightSpeed','setBackLightDirection','setBrightness','setUnderLightMode','setUnderLightEnabled','setUnderLightSync','setUnderLightBrightness','setUnderLightColor','setUnderLightSpeed','setSingleLight','setFpsEnhance','setAutoCalibration','setAutoLightOff','setHighlight','setSaturation']);
 async function invoke(name,args=[]){
@@ -10,6 +10,7 @@ async function invoke(name,args=[]){
   if(typeof adapter[name]!=='function')return unsupported(name);
   const result=await adapter[name](...args);
   applied=true;
+  if(result&&typeof result==='object'&&result.persistence)return {ok:true,result};
   if(!persistentMethods.has(name))return {ok:true,result};
   const persistence=await adapter.saveToDeviceMemory();
   return {ok:true,result:result&&typeof result==='object'&&!Array.isArray(result)?{...result,persistence}:result};

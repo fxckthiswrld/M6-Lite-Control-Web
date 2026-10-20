@@ -85,16 +85,25 @@ test('HE writes encode the UI boolean RT flag as a numeric protocol byte', async
   let sent;
   const heWrites = [];
   adapter.device = {
-    readInit: async kind => kind === 1 ? Buffer.from(config) : Buffer.from(raw),
+    readInit: async kind => {
+      if (kind === 1) return Buffer.from(config);
+      if (kind === 2 || kind === 4) return Buffer.alloc(4776);
+      if (kind === 24) return Buffer.alloc(420);
+      return Buffer.from(raw);
+    },
     send: async payload => {
       sent = Buffer.from(payload);
       if (sent[1] === 2) sent.subarray(2, 16).copy(config);
-      else {
+      else if (sent[1] === 0x31) {
         heWrites.push(sent);
         const offset = (2 * 14 + 1) * 14;
         raw[offset] = sent[6];
         for (let i = 0; i < 6; i++) raw.writeUInt16LE(sent.readUInt16LE(7 + i * 2), offset + 2 + i * 2);
       }
+    },
+    openReportStream() {
+      const responses = [Buffer.from([0, 0xc9]), Buffer.from([0, 0xca]), Buffer.from([0, 0xfe])];
+      return { next: async () => responses.shift() ?? null, close() {} };
     }
   };
   const result = await adapter.saveSelected({
