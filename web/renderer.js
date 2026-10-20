@@ -548,8 +548,8 @@ function refreshSelection(){
   $('save').title='Apply the displayed mode and its values to the selected switches';
 }
 $('select-multiple').onclick=()=>{multipleSelection=!multipleSelection;$('select-multiple').setAttribute('aria-pressed',String(multipleSelection));};
-$('select-all-keys').onclick=()=>{if(busy||!profile)return;selectedIds=new Set(profile.layout.map(k=>k.id));refreshSelection();collapseHeFields();};
-$('select-one-key').onclick=()=>{if(busy||!profile||!selectedId)return;selectedIds=new Set([selectedId]);refreshSelection();collapseHeFields();};
+$('select-all-keys').onclick=()=>{if(busy||!profile)return;selectedIds=new Set(profile.layout.map(k=>k.id));selectedId=[...selectedIds][0];refreshSelection();collapseHeFields();};
+$('select-one-key').onclick=()=>{if(busy||!profile||!ensureSelectedKey())return;selectedIds=new Set([selectedId]);refreshSelection();collapseHeFields();};
 const fileActions=document.createElement('div');fileActions.className='actions';
 fileActions.innerHTML='<button id="export-he" class="secondary">Export HE JSON</button><button id="import-he" class="secondary">Import HE JSON</button><span>HE settings only; import replaces the selected profile.</span>';
 hePanel.appendChild(fileActions);
@@ -617,8 +617,9 @@ function showSelected() {
   refreshSelection();
 }
 function displayTravel(key){return {trigger:(key.rtOn?key.trigger:key.fixedDown).toFixed(3),release:(key.rtOn?key.release:key.fixedUp).toFixed(3)};}
-function updateHeFieldsVisibility(){const visible=heFieldsVisible&&!!selectedId&&!!profile;$('mechanical-fields').hidden=!visible||$('rt').checked;$('rt-fields').hidden=!visible||!$('rt').checked;}
+function updateHeFieldsVisibility(){const visible=heFieldsVisible&&!!selectedId&&!!profile;$('mechanical-fields').hidden=!visible||$('rt').checked;$('rt-fields').hidden=!visible||!$('rt').checked;const apply=$('apply-he');if(apply){apply.hidden=!visible;apply.style.display=visible?'':'none';}}
 function collapseHeFields(){heFieldsVisible=false;updateHeFieldsVisibility();}
+function ensureSelectedKey(){if(selectedId&&selectedIds.has(selectedId))return true;if(selectedIds.size){selectedId=[...selectedIds][0];return true;}return false;}
 const keyStateSummary=document.createElement('p');keyStateSummary.id='key-state-summary';keyStateSummary.setAttribute('role','status');
 $('keyboard').after(keyStateSummary);
 function programmingBadge(assignment){
@@ -673,7 +674,7 @@ function drawKeyboard() {
       collapseHeFields();
       if(document.body.dataset.page==='range'||multipleSelection||event.ctrlKey||event.metaKey){
         if(selectedIds.has(key.id)){if(selectedIds.size===1)return;selectedIds.delete(key.id);if(key.id===selectedId){selectedId=[...selectedIds][0];showSelected();}}
-        else selectedIds.add(key.id);
+        else {selectedIds.add(key.id);selectedId=key.id;}
         refreshSelection();
       }else{selectedIds=new Set([key.id]);selectedId=key.id;showSelected();}
     };
@@ -683,7 +684,7 @@ function drawKeyboard() {
 async function loadProfile(nextLayer=layer) {
   if(busy)return;
   discardLightingDraft();
-  setBusy(true);$('status').textContent=`Reading M${nextLayer+1} from keyboardâ€¦`;
+  setBusy(true);$('status').textContent=`Reading M${nextLayer+1} from keyboard...`;
   try {
     const reply=await window.keyboard.readProfile(nextLayer);
     if(!reply.ok)throw new Error(reply.error);
@@ -786,7 +787,7 @@ $('read').onclick=()=>{setDeviceDataStatus('Reading keyboard configuration...');
 $('save-memory').onclick=async()=>{if(busy)return;setBusy(true);const message='Saving to device memory...';$('status').textContent=message;setDeviceDataStatus(message);try{const reply=await window.keyboard.saveToDeviceMemory();if(!reply.ok)throw new Error(reply.error);const done='Save command acknowledged. Power-cycle verification is still required.';$('status').textContent=done;setDeviceDataStatus(done);}catch(e){$('status').textContent=e.message;setDeviceDataStatus(e.message);}finally{setBusy(false);}};
 async function saveChanges(all=false) {
   if(busy||!profile)return;
-  if(!selectedId||!selectedIds.size){$('status').textContent='Select a switch first.';return;}
+  if(!ensureSelectedKey()){$('status').textContent='Select a switch first.';return;}
   const request={id:selectedId,ids:[...selectedIds],layer,rtOn:$('rt').checked};
   for(const field of travelFields) {
     if(!$(field).checkValidity()){$(field).reportValidity();return;}
@@ -794,7 +795,7 @@ async function saveChanges(all=false) {
   }
   const current=profile.keys.find(k=>`${k.row}:${k.col}`===selectedId);
   if(!all&&selectedIds.size===1&&current&&current.rtOn===request.rtOn&&travelFields.every(f=>current[f]===request[f]))return;
-  setBusy(true);$('status').textContent='Saving and reading back the selected switchâ€¦';
+  setBusy(true);$('status').textContent='Saving and reading back the selected switch...';
   try {
     const reply=await (all?window.keyboard.applyAll(request):window.keyboard.saveSelected(request));
     if(!reply.ok)throw new Error(reply.error);
@@ -810,13 +811,16 @@ async function saveChanges(all=false) {
 $('save').onclick=()=>saveChanges();
 function changeMode(rtOn){
   if(busy||!profile)return;
-  if(!selectedId||!selectedIds.size){$('status').textContent='Select a switch first.';collapseHeFields();return;}
+  if(!ensureSelectedKey()){$('status').textContent='Select a switch first.';collapseHeFields();return;}
+  showSelected();
   heFieldsVisible=true;
   $('rt').checked=rtOn;
   updateHeFieldsVisibility();
+  $('status').textContent='Set the values, then Apply.';
   $('mode-mechanical').setAttribute('aria-pressed',String(!rtOn));$('mode-rt').setAttribute('aria-pressed',String(rtOn));
 }
 $('mode-mechanical').onclick=()=>changeMode(false);$('mode-rt').onclick=()=>changeMode(true);
+$('apply-he').onclick=()=>saveChanges();
 $('apply').onclick=()=>saveChanges(true);
 function showPairState(){
   if(!programming)return;
@@ -878,7 +882,7 @@ $('dks-apply').onclick=()=>applyDks(true);$('dks-disable').onclick=()=>applyDks(
 $('pair-first').onchange=showPairState;$('pair-second').onchange=showPairState;
 async function applyPair(disable=false){
   if(busy||!programming)return;
-  setBusy(true);$('pair-status').textContent='Applying pair and verifying device readbackâ€¦';
+  setBusy(true);$('pair-status').textContent='Applying pair and verifying device readback...';
   try{
     const reply=await window.keyboard.setPair({layer,first:$('pair-first').value,second:$('pair-second').value,mode:disable?0:Number($('pair-mode').value)});
     if(!reply.ok)throw new Error(reply.error);
@@ -1036,10 +1040,6 @@ hideAutoControls([
   'device-mode-apply','device-settings-read','device-highlight-apply','device-auto-calibration-apply','device-auto-light-off-apply','device-saturation-apply',
   'calibration-read'
 ]);
-const autoHe=autoApply(()=>saveChanges(),350);
-for(const field of travelFields)$(field).addEventListener('change',autoHe);
-$('mode-mechanical').addEventListener('click',autoApply(()=>saveChanges(),80));
-$('mode-rt').addEventListener('click',autoApply(()=>saveChanges(),80));
 $('lighting-brightness').addEventListener('change',autoApply(()=>$('lighting-apply').click(),250));
 $('lighting-mode').addEventListener('change',autoApply(()=>$('lighting-mode-apply').click(),80));
 $('lighting-color').addEventListener('change',autoApply(()=>$('lighting-color-apply').click(),250));
