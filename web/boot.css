@@ -196,3 +196,4 @@ body[data-page="home"] #keyboard .key{cursor:default;pointer-events:none}
 @font-face{font-family:'Space Mono';font-style:normal;font-weight:700;font-display:swap;src:url('fonts/space-mono-bold-latin.woff2') format('woff2')}
 .keyboard .key-label,.keyboard .key-release,.keyboard .key-trigger,.keyboard .key[data-shortcut]:after,.keyboard .key[data-assignment]:after,#calibration-map .calibration-key,.shortcut-item kbd,.programming-slot b,.selected-switch{font-family:'Space Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace!important}
 .keyboard .key-label,.keyboard .key-release,.keyboard .key-trigger{font-weight:400!important}
+body[data-page=home] .keyboard .key[data-shortcut]:after{font-size:9px!important;line-height:10px!important;max-height:22px!important;white-space:normal!important;overflow-wrap:anywhere!important;word-break:break-word!important;text-overflow:clip!important;bottom:4px!important}
