@@ -354,10 +354,11 @@ function startCalibrationPoll(){
 }
 function setCalibrationActive(value){calibrationActive=value;if(value)calibrationLiveBaseline=null;$('calibration-start').hidden=value;$('calibration-selected').hidden=value;$('calibration-finish').hidden=!value;$('calibration-cancel').hidden=!value;$('calibration-reset').disabled=value||!calibrationStateKnown;const live=$('calibration-live');if(live){live.classList.toggle('active',value);if(!value)live.textContent='';}}
 function updateSelectedCalibrationButton(){
-  const calibrationCount=calibrationSelectedIds.size||(selectedId?1:0);
+  const calibrationCount=calibrationSelectedIds.size;
   $('calibration-selected').textContent=calibrationCount>1?'Calibrate selected keys':'Calibrate selected key';
   $('calibration-selected').disabled=busy||!calibrationStateKnown||calibrationActive||!calibrationCount;
-  $('calibration-selected').title=calibrationCount>1?`Calibrate ${calibrationCount} selected switches`:(calibrationCount===1?`Calibrate ${profile?.layout.find(k=>k.id===selectedId)?.label||selectedId}`:'Select one or more switches first');
+  const calibrationId=[...calibrationSelectedIds][0];
+  $('calibration-selected').title=calibrationCount>1?`Calibrate ${calibrationCount} selected switches`:(calibrationCount===1?`Calibrate ${profile?.layout.find(k=>k.id===calibrationId)?.label||calibrationId}`:'Select one or more switches first');
   $('calibration-start').disabled=busy||!calibrationStateKnown||calibrationActive;
   $('calibration-reset').disabled=busy||!calibrationStateKnown||calibrationActive;
   $('calibration-finish').disabled=busy||!calibrationStateKnown||!calibrationActive;
@@ -369,7 +370,7 @@ async function restoreCalibrationState(){
   try{
     const reply=await window.keyboard.calibrationState();
     if(!reply.ok)throw new Error(reply.error);
-    calibrationSelectedIds=new Set(reply.result.selectedIds||(reply.result.selectedId?[reply.result.selectedId]:[]));
+    calibrationSelectedIds=reply.result.active?new Set(reply.result.selectedIds||(reply.result.selectedId?[reply.result.selectedId]:[])):new Set();
     setCalibrationActive(reply.result.active);
     calibrationStateKnown=true;
     updateSelectedCalibrationButton();
@@ -435,7 +436,7 @@ $('calibration-reset').onclick=async()=>{
   finally{setBusy(false);updateSelectedCalibrationButton();}
 };
 $('calibration-selected').onclick=async()=>{
-  const ids=[...calibrationSelectedIds];if(!ids.length&&selectedId)ids.push(selectedId);
+  const ids=[...calibrationSelectedIds];
   if(busy||!calibrationStateKnown||calibrationActive||!ids.length)return;
   const names=ids.map(id=>profile?.layout.find(k=>k.id===id)?.label||id);
   setBusy(true);$('calibration-status').textContent=`Starting calibration for ${names.join(', ')}...`;
