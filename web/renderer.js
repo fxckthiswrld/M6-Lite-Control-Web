@@ -688,7 +688,6 @@ async function loadProfile(nextLayer=layer) {
     $('preset-preview').textContent=`M${layer+1}: DKS changes W, A, S and D (W/S and A/D targets, interval 20). SNAP pairs A and D and keeps W/S unchanged. DKS replaces A/D SNAP. Off disables both presets.`;
     $('preset-status').textContent='';
     programming=null;
-    if(!selectedId&&profile.layout.length){selectedId=profile.layout[0].id;selectedIds=new Set([selectedId]);}
     drawKeyboard();showSelected();
     for(const [id,fallback] of [['pair-first','2:1'],['pair-second','2:3'],['dks-source','2:1'],['dks-target','2:3']]){
       const select=$(id),previous=select.value||fallback;select.replaceChildren();
