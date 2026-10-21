@@ -6,7 +6,7 @@ const require = createRequire(import.meta.url);
 const { parseCalibration } = require('../src/calibration.cjs');
 const { validateProfile } = require('../src/he-profile-file.cjs');
 const { prepareQuickPreset } = require('../src/preset-off.cjs');
-const { encodeStandardRemap, encodeModify, parseProgrammingProfile } = require('../src/key-programming.cjs');
+const { encodeStandardRemap, encodeModify, parseProgrammingProfile, buildDksRecord, encodeDks } = require('../src/key-programming.cjs');
 const { BrowserAdapter, BrowserDevice } = require('../src/browser-adapter.cjs');
 const layout = require('./keyboard-layout.json');
 
@@ -62,13 +62,46 @@ test('quick Snap preset emits pair writes for A and D', () => {
   assert.equal(plan.expected[8 + 31 * 68], 5);
 });
 
+test('quick CL preset emits A/D cancel writes', () => {
+  const plan = prepareQuickPreset(programmingFixture(), 0, 'cl');
+  assert.equal(plan.commands.length, 2);
+  assert.deepEqual(plan.commands.map(command => command[2]), [12, 12]);
+  assert.deepEqual([...plan.commands[0].subarray(6, 10)], [2, 1, 6, 0]);
+  assert.deepEqual([...plan.commands[1].subarray(6, 10)], [2, 3, 6, 0]);
+  assert.equal(plan.expected[8 + 29 * 68], 6);
+  assert.equal(plan.expected[8 + 31 * 68], 6);
+});
+
+test('Off accepts leftover SNAP fields on DKS WASD keys', () => {
+  const dks = prepareQuickPreset(programmingFixture(), 0, 'dks');
+  const stale = Buffer.from(dks.expected);
+  for (const [index, row, col] of [[29, 3, 3], [31, 3, 1]]) {
+    stale[8 + index * 68 + 64] = row;
+    stale[8 + index * 68 + 65] = col;
+  }
+  assert.doesNotThrow(() => prepareQuickPreset(stale, 0, 'off'));
+});
+
 test('quick preset readback verifies each requested assignment', () => {
   const adapter = new BrowserAdapter();
   const dks = prepareQuickPreset(programmingFixture(), 0, 'dks');
   const snap = prepareQuickPreset(programmingFixture(), 0, 'snap');
+  const cl = prepareQuickPreset(programmingFixture(), 0, 'cl');
   adapter.verifyQuickPreset(parseProgrammingProfile(dks.expected), 0, 'dks');
   adapter.verifyQuickPreset(parseProgrammingProfile(snap.expected), 0, 'snap');
+  adapter.verifyQuickPreset(parseProgrammingProfile(cl.expected), 0, 'cl');
+  assert.doesNotThrow(() => prepareQuickPreset(cl.expected, 0, 'off'));
   assert.throws(() => adapter.verifyQuickPreset(parseProgrammingProfile(programmingFixture()), 0, 'dks'), /DKS readback mismatch/);
+});
+
+test('custom DKS writes the selected physical target into the DKS subrecord', () => {
+  const parsed = parseProgrammingProfile(programmingFixture());
+  const key = parsed.keys[2 * 14 + 7];
+  const dks = buildDksRecord(key.record.subarray(52, 64), { row: 4, col: 4 }, 20);
+  assert.equal(dks.length, 12);
+  const command = encodeDks(key, 0, 0, dks);
+  assert.deepEqual([...command.subarray(8, 12)], [4, 0, 4, 4]);
+  assert.equal(command.readUInt16LE(17), 20);
 });
 
 test('keyboard programming writes use one-based target rows', () => {
@@ -439,4 +472,64 @@ test('calibration telemetry ignores unrelated payloads', () => {
   const keys = layout.map(({ id, row, col }) => ({ id, row, col }));
   const payload = Buffer.alloc(20); payload[1] = 0;
   assert.equal(telemetry.decodeCalibrationPayload(payload, keys), null);
+});
+
+test('readback preserves a queued save CRC request for the next save stream', async () => {
+  const IN = Buffer.from('6a6d64663f2ef0430a41ea8f2bfce0e7d5527ba5', 'hex');
+  const encode = payload => Buffer.from(payload.map((value, index) => value ^ IN[index]));
+  const device = new BrowserDevice();
+  const listeners = [];
+  const emit = event => { for (const handler of [...listeners]) handler(event); };
+  device.handle = {
+    opened: true,
+    collections: [{ usagePage: 0x000c, outputReports: [{ reportId: 4, reportSize: 160 }] }],
+    addEventListener(_type, handler) { listeners.push(handler); },
+    removeEventListener(_type, handler) { const index = listeners.indexOf(handler); if (index >= 0) listeners.splice(index, 1); },
+    sendReport: async () => {}
+  };
+  device.attachInputMonitor();
+  const reading = device.readInit(9);
+  assert.equal(listeners.length, 2, 'the permanent monitor and readback listener must both be attached');
+  const crc = Buffer.alloc(20); crc.set([0, 0xc9]);
+  emit({ reportId: 4, data: encode(crc) });
+  const reply = Buffer.alloc(20); reply.set([8, 0, 9, 1, 0, 1, 0]);
+  emit({ reportId: 4, data: encode(reply) });
+  const raw = await reading;
+  assert.equal(raw.length, 12);
+  assert.equal(device.pendingDeviceFrames.length, 1);
+  assert.deepEqual([...device.pendingDeviceFrames[0].subarray(0, 2)], [0, 0xc9]);
+  const stream = device.openReportStream();
+  assert.deepEqual([...((await stream.next(10)).subarray(0, 2))], [0, 0xc9]);
+  stream.close();
+  assert.equal(device.pendingDeviceFrames.length, 0);
+});
+test('persistent lighting calls save with a report stream opened before the write', async () => {
+  const adapter = new BrowserAdapter();
+  const order = [], sent = [];
+  const light = Buffer.alloc(32); light[0] = 5; light[10] = 200; light[11] = 1;
+  const config = Buffer.alloc(20); config[9] = 1; config[10] = 200; config[11] = 0;
+  adapter.device = {
+    readInit: async kind => {
+      order.push('read' + kind);
+      if (kind === 9) return Buffer.from(light);
+      if (kind === 17) return Buffer.from(config);
+      if (kind === 2 || kind === 4) return Buffer.alloc(4776);
+      if (kind === 25 || kind === 26) return Buffer.alloc(984);
+      throw new Error('unexpected INIT' + kind);
+    },
+    send: async payload => { order.push('send'); sent.push(Buffer.from(payload)); },
+    openReportStream: () => {
+      order.push('stream');
+      const responses = [Buffer.from([0, 0xc9]), Buffer.from([0, 0xca]), Buffer.from([0, 0xfe])];
+      return { next: async () => responses.shift() ?? null, close: () => order.push('close') };
+    }
+  };
+  const { result, persistence } = await adapter.persistentCall('setUnderLightMode', [5], { requireCrc: false });
+  assert.equal(result.mode, 5);
+  assert.equal(persistence.acknowledged, true);
+  assert.equal(order[0], 'read2');
+  assert.ok(order.indexOf('stream') < order.indexOf('send'));
+  assert.equal(order.at(-1), 'close');
+  assert.equal(sent.length, 4);
+  assert.equal(sent[0][1], 11);
 });

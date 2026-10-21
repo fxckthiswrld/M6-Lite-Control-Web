@@ -73,3 +73,11 @@ test('missing CRC sections fail before opening the report stream', async () => {
   await assert.rejects(() => saveDeviceMemory(fixtureState.device, new Map(), { requireCrc: true }), /Missing device-memory backup/);
   assert.equal(fixtureState.sent.length, 0);
 });
+
+test('tolerant settings save reports a sent command without SAVE_END', async () => {
+  const fixtureState = fixture([]);
+  const result = await saveDeviceMemory(fixtureState.device, sections(), { tolerant: true, timeoutMs: 20 });
+  assert.equal(result.acknowledged, true);
+  assert.equal(result.completion, 'SENT');
+  assert.equal(result.confirmed, false);
+});

@@ -1,8 +1,10 @@
-﻿'use strict';
+'use strict';
 const $ = id => document.getElementById(id);
-function updateLightingSlider(id,valueId){const input=$(id),output=$(valueId);if(input&&output){const percent=id.includes('brightness')||id==='underlight-speed';output.value=percent?`${input.value}%`:input.value;}}
+function updateLightingSlider(id,valueId){const input=$(id),output=$(valueId);if(input&&output){const percent=id.includes('brightness')||id==='underlight-speed'||id==='lighting-speed';output.value=percent?`${input.value}%`:input.value;}}
 function speedToPercent(value,min,max){if(!Number.isFinite(value)||!Number.isFinite(min)||!Number.isFinite(max)||max<=min)return '';return Math.round((value-min)*100/(max-min));}
 function percentToSpeed(percent,min,max){if(!Number.isFinite(percent)||!Number.isFinite(min)||!Number.isFinite(max)||max<=min)return min;return Math.round(min+(percent/100)*(max-min));}
+function speedToPercentUI(value,min,max){const percent=speedToPercent(value,min,max);return percent===''?'':100-percent;}
+function percentToSpeedUI(percent,min,max){return percentToSpeed(100-percent,min,max);}
 const travelFields = ['head','bottom','trigger','release','fixedDown','fixedUp'];
 let layer = 0, selectedId = '2:1', profile = null, busy = false, heFieldsVisible = false;
 let deviceWasConnected = false, connectionRecoveryNeeded = false, recoveryTimer = null, recoveryInFlight = false, startupConnectInFlight = false, expectedDeviceRestart = false;
@@ -25,7 +27,7 @@ dksAllButton.onclick=()=>{
   if(busy||!programming||!profile||!$('dks-interval').reportValidity()||!$('dks-target').value)return;
   dksAllDraft={layer,target:$('dks-target').value,interval:$('dks-interval').valueAsNumber};
   const conflicts=profile.layout.filter(k=>![0,4].includes(programming.keys[k.row*14+k.col].mode));
-  $('dks-all-summary').textContent=`M${layer+1}: ${profile.layout.length} switches → ${$('dks-target').selectedOptions[0].textContent}; interval ${dksAllDraft.interval}. ${conflicts.length?`${conflicts.length} switches have conflicting assignments.`:'All switches use Standard or DKS mode.'}`;
+  $('dks-all-summary').textContent=`M${layer+1}: ${profile.layout.length} switches â†’ ${$('dks-target').selectedOptions[0].textContent}; interval ${dksAllDraft.interval}. ${conflicts.length?`${conflicts.length} switches have conflicting assignments.`:'All switches use Standard or DKS mode.'}`;
   $('dks-all-confirm').disabled=conflicts.length>0;dksAllDialog.showModal();
 };
 $('dks-all-confirm').onclick=async()=>{
@@ -34,32 +36,32 @@ $('dks-all-confirm').onclick=async()=>{
   dksAllDialog.close();setBusy(true);$('dks-status').textContent='Applying DKS to all switches and verifying...';
   try{
     const reply=await window.keyboard.setDksAll(request);if(!reply.ok)throw new Error(reply.error);
-    programming=reply.result;showPairState();showDksState();updateProgrammingIndicators();$('dks-status').textContent='DKS applied to all switches. Device readback verified.';
+    programming=reply.result;showPairState();showDksState();updateProgrammingIndicators();clearDksSelection();$('dks-status').textContent='DKS applied to all switches. Device readback verified.';
   }catch(error){$('dks-status').textContent=error.message;}finally{setBusy(false);}
 };
 document.querySelector('header').after(presetPanel);
-presetPanel.insertAdjacentHTML('afterbegin','<small>QUICK PRESETS</small><h2>DKS / SNAP</h2><p id="preset-preview"></p><div class="actions"><button id="dks-wasd">DKS - WASD</button><button id="dks-wasd-disable" class="secondary">Disable WASD DKS</button><button id="snap-ad">SNAP - A / D</button><button id="snap-ad-disable" class="secondary">Disable A / D SNAP</button><button id="preset-off" disabled title="Disable quick presets in the current profile">Off</button></div><p id="preset-status" role="status" aria-live="polite"></p><hr>');
-advancedPanel.insertAdjacentHTML('beforeend','<hr><h2>HotKey</h2><p>Repeat one standard key at a controlled interval. The source must be in Standard mode.</p><div class="controls"><label>Source switch<select id="hotkey-source"></select></label><label>Interval<input id="hotkey-interval" type="number" min="0" max="255" step="1" value="20"></label></div><p id="hotkey-current"></p><div class="actions"><button id="hotkey-apply">Apply HotKey</button><span id="hotkey-status" role="status" aria-live="polite"></span></div>');
+presetPanel.insertAdjacentHTML('afterbegin','<small>QUICK PRESETS</small><h2>DKS / SNAP / CL</h2><p id="preset-preview"></p><div class="actions"><button id="dks-wasd">DKS - WASD</button><button id="dks-wasd-disable" class="secondary">Disable WASD DKS</button><button id="snap-ad">SNAP - A / D</button><button id="cl-ad">CL - A / D</button><button id="snap-ad-disable" class="secondary">Disable A / D SNAP</button><button id="preset-defaults" class="secondary">Restore WASD defaults</button><button id="preset-off" disabled title="Disable quick presets in the current profile">Off</button></div><p id="preset-status" role="status" aria-live="polite"></p><hr>');
+advancedPanel.insertAdjacentHTML('beforeend','<hr><h2>HotKey</h2><p>Repeat one standard key at a controlled interval. The source must be in Standard mode.</p><div class="controls"><label>Source switch<select id="hotkey-source"></select></label><label>Interval<input id="hotkey-interval" type="number" min="0" max="255" step="1" value="23"></label></div><p id="hotkey-current"></p><div class="actions"><button id="hotkey-apply">Apply HotKey</button><span id="hotkey-status" role="status" aria-live="polite"></span></div>');
 hePanel.after(advancedPanel);
 const pendingPanel=document.createElement('section');pendingPanel.className='panel';pendingPanel.hidden=true;
 pendingPanel.innerHTML='<small>IN DEVELOPMENT</small><h2 id="pending-title"></h2><p>This section is in development. Device controls will appear here when ready.</p>';
 advancedPanel.after(pendingPanel);
 const lightingPanel=document.createElement('section');lightingPanel.className='panel lighting-panel';lightingPanel.hidden=true;
-lightingPanel.innerHTML='<small>LIGHTING</small><h2>Lighting control</h2><div class="lighting-section lighting-global"><h3>Back Light brightness</h3><label class="range-control"><input id="lighting-brightness" type="range" min="0" max="100" step="1" disabled><output id="lighting-brightness-value">—</output></label><div class="actions"><button id="lighting-read">Refresh</button><button id="lighting-apply" disabled>Apply</button></div><p id="lighting-status" role="status" aria-live="polite">Read Back Light brightness from the keyboard.</p></div>';
+lightingPanel.innerHTML='<small>LIGHTING</small><h2>Lighting control</h2><div class="lighting-section lighting-global"><h3>Back Light brightness</h3><label class="range-control"><input id="lighting-brightness" type="range" min="0" max="100" step="1" disabled><output id="lighting-brightness-value">â€”</output></label><div class="actions"><button id="lighting-read">Refresh</button><button id="lighting-apply" disabled>Apply</button></div><p id="lighting-status" role="status" aria-live="polite">Read Back Light brightness from the keyboard.</p></div>';
 pendingPanel.after(lightingPanel);
 lightingPanel.insertAdjacentHTML('afterbegin','<div class="lighting-service-controls" hidden aria-hidden="true"><input id="backlight-enabled" type="checkbox" disabled><button id="backlight-enabled-apply" disabled>Apply Back Light power</button></div>');
 lightingPanel.insertAdjacentHTML('beforeend','<hr><h3>Back Light effect</h3><p id="lighting-mode-current">Read the current effect from the keyboard.</p><div class="controls"><label>Effect<select id="lighting-mode" disabled><option value="2">Normal</option><option value="5">Stream</option><option value="4">Gradient</option><option value="6">Star</option><option value="7">Roll</option><option value="3">Breath</option></select></label></div><button id="lighting-mode-apply" disabled>Apply effect</button><p id="lighting-mode-status" role="status">Normal lighting effects are available while the application runs.</p>');
 lightingPanel.insertAdjacentHTML('beforeend','<div id="lighting-color-controls"><h3>Current effect color</h3><div class="controls"><label class="toggle-row"><input id="lighting-custom-rgb" type="checkbox" disabled><span>Custom RGB</span></label><label class="color-field">Color<input id="lighting-color" type="color" disabled></label></div><button id="lighting-color-apply" disabled>Apply color</button><p id="lighting-color-note">Choose an effect before editing its color. Single Light can override this color on assigned keys.</p></div>');
-lightingPanel.insertAdjacentHTML('beforeend','<div class="lighting-section"><h3>Effect speed</h3><label class="range-control"><input id="lighting-speed" type="range" min="0" max="6000" step="1" disabled><output id="lighting-speed-value">—</output></label><button id="lighting-speed-apply" disabled>Apply speed</button><p id="lighting-speed-note">Choose an effect to edit its speed. Normal has no speed control.</p></div>');
+lightingPanel.insertAdjacentHTML('beforeend','<div class="lighting-section"><h3>Effect speed</h3><label class="range-control"><input id="lighting-speed" type="range" min="0" max="6000" step="1" disabled><output id="lighting-speed-value">â€”</output></label><button id="lighting-speed-apply" disabled>Apply speed</button><p id="lighting-speed-note">Choose an effect to edit its speed. Normal has no speed control.</p></div>');
 lightingPanel.insertAdjacentHTML('beforeend','<div class="direction-control"><h3>Effect direction</h3><label class="toggle-row"><input id="lighting-reverse" type="checkbox" disabled><span>Reverse</span></label><button id="lighting-direction-apply" disabled>Apply direction</button></div>');
 lightingPanel.insertAdjacentHTML('beforeend','<hr><h2>Under Light</h2><p>Independent lighting beneath the keyboard.</p><p id="underlight-current">Read the current effect from the keyboard.</p><div class="controls"><label>Effect<select id="underlight-mode" disabled><option value="5">Stream</option><option value="3">Breath</option><option value="6">Star</option><option value="4">Gradient</option><option value="7">Normal</option></select></label></div><div class="actions"><button id="underlight-read">Refresh Under Light</button><button id="underlight-apply" disabled>Apply Under Light</button></div><p id="underlight-status" role="status">Normal Sync status is read automatically.</p>');
-lightingPanel.insertAdjacentHTML('beforeend','<h3>Under Light color</h3><div class="controls"><label class="toggle-row"><input id="underlight-custom-rgb" type="checkbox" disabled><span>Custom RGB</span></label><label class="color-field">Color<input id="underlight-color" type="color" disabled></label></div><button id="underlight-color-apply" disabled>Apply Under Light color</button><p>Color is available for Normal and Breath. Choose that effect before editing its color.</p>');
-lightingPanel.insertAdjacentHTML('beforeend','<div class="lighting-section"><h3>Under Light speed</h3><label class="range-control"><input id="underlight-speed" type="range" min="0" max="6000" step="1" disabled><output id="underlight-speed-value">—</output></label><button id="underlight-speed-apply" disabled>Apply Under Light speed</button><p id="underlight-speed-note">Choose an effect before editing its speed.</p></div>');
-lightingPanel.insertAdjacentHTML('beforeend','<div class="lighting-section"><h3>Under Light brightness</h3><label class="range-control"><input id="underlight-brightness" type="range" min="0" max="100" step="1" disabled><output id="underlight-brightness-value">—</output></label><button id="underlight-brightness-apply" disabled>Apply Under Light brightness</button></div>');
+lightingPanel.insertAdjacentHTML('beforeend','<h3>Under Light color</h3><div class="controls"><label class="toggle-row"><input id="underlight-custom-rgb" type="checkbox" disabled><span>Custom RGB</span></label><label class="color-field">Color<input id="underlight-color" type="color" disabled></label></div><button id="underlight-color-apply" disabled>Apply Under Light color</button><p>The selected color is applied directly for Normal and Breath. Choose an effect before editing its color.</p>');
+lightingPanel.insertAdjacentHTML('beforeend','<div class="lighting-section"><h3>Under Light speed</h3><label class="range-control"><input id="underlight-speed" type="range" min="0" max="6000" step="1" disabled><output id="underlight-speed-value">â€”</output></label><button id="underlight-speed-apply" disabled>Apply Under Light speed</button><p id="underlight-speed-note">Choose an effect before editing its speed.</p></div>');
+lightingPanel.insertAdjacentHTML('beforeend','<div class="lighting-section"><h3>Under Light brightness</h3><label class="range-control"><input id="underlight-brightness" type="range" min="0" max="100" step="1" disabled><output id="underlight-brightness-value">â€”</output></label><button id="underlight-brightness-apply" disabled>Apply Under Light brightness</button></div>');
 lightingPanel.insertAdjacentHTML('beforeend','<h3>Under Light power</h3><label><input id="underlight-enabled" type="checkbox" disabled> Enable Under Light</label><button id="underlight-enabled-apply" disabled>Apply Under Light power</button>');
 lightingPanel.insertAdjacentHTML('beforeend','<h3>Under Light synchronization</h3><label><input id="underlight-sync" type="checkbox" disabled> Normal Sync</label><button id="underlight-sync-apply" disabled>Apply Normal Sync</button><p id="underlight-sync-note">Disable Normal Sync to edit independent Under Light effects.</p>');
 lightingPanel.insertAdjacentHTML('beforeend','<hr><h2>Single Light</h2><label><input id="single-active" type="checkbox" disabled> Enable Single Light layer</label><button id="single-active-apply" disabled>Apply layer</button><div class="controls"><label>Keys (click one or more to select)<select id="single-keys" multiple size="8" disabled></select></label><label><input id="single-enabled" type="checkbox" disabled> Override Back Light for selected keys</label><label>Color<input id="single-color" type="color" disabled></label></div><button id="single-read">Refresh Single Light</button><button id="single-apply" disabled>Apply to selected keys</button><p id="single-status" role="status">Read Single Light from the keyboard.</p><p>Colors override Back Light only for enabled keys while this layer is enabled. Changes are saved to device memory automatically.</p>');
-$('single-apply').insertAdjacentHTML('afterend','<div class="lighting-section"><h3>Selected keys brightness</h3><label class="range-control"><input id="single-brightness" type="range" min="0" max="100" step="1" disabled><output id="single-brightness-value">—</output></label><button id="single-brightness-apply" disabled>Apply brightness to selected keys</button><p>Brightness preserves each selected key’s RGB color. Applying a color preserves its brightness.</p></div>');
+$('single-apply').insertAdjacentHTML('afterend','<div class="lighting-section"><h3>Selected keys brightness</h3><label class="range-control"><input id="single-brightness" type="range" min="0" max="100" step="1" disabled><output id="single-brightness-value">-</output></label><button id="single-brightness-apply" disabled>Apply brightness to selected keys</button><p>Brightness preserves each selected key&rsquo;s RGB color. Applying a color preserves its brightness.</p></div>');
 let singleState=null,singleReady=false,singleBrightnessRaw=0;
 function showSingleSelection(){
  const ids=Array.from($('single-keys').selectedOptions,o=>o.value),keys=singleState?.keys.filter(k=>ids.includes(k.id))||[];
@@ -73,6 +75,7 @@ async function readSingleLight(){
  const ids=new Set(Array.from($('single-keys').selectedOptions,o=>o.value));$('single-keys').replaceChildren();
  for(const k of singleState.keys){const option=document.createElement('option');option.value=k.id;option.textContent=`${k.label}: ${k.enabled?k.color:'Back Light'}${k.canEdit?'':' (unsupported mode)'}`;option.selected=ids.size?ids.has(k.id):selectedIds.has(k.id);$('single-keys').appendChild(option);}
  showSingleSelection();
+ updateLightingPreview();
 }
 async function singleAction(kind){
  if(busy||(kind!=='read'&&!singleReady))return;
@@ -80,22 +83,24 @@ async function singleAction(kind){
  const request=kind==='layer'?{active:$('single-active').checked}:kind==='brightness'?{keys,brightness:singleBrightnessRaw}:{keys,enabled:$('single-enabled').checked,color:$('single-color').value};
  setBusy(true);
  try{if(kind!=='read'){const reply=await window.keyboard.setSingleLight(request);if(!reply.ok)throw Error(reply.error);}await readSingleLight();if(kind!=='read')$('single-status').textContent='Single Light applied; device readback verified. Saved to device memory automatically.';}
- catch(error){singleReady=false;$('single-status').textContent=error.message;}finally{setBusy(false);}
+ catch(error){const applied=appliedWithoutSave(error);if(!applied)singleReady=false;if(applied){try{await readSingleLight();}catch{}}$('single-status').textContent=error.message;}finally{setBusy(false);}
 }
 $('single-keys').onchange=showSingleSelection;$('single-read').onclick=()=>singleAction('read');$('single-apply').onclick=()=>singleAction('keys');$('single-active-apply').onclick=()=>singleAction('layer');
 $('single-brightness').oninput=()=>{singleBrightnessRaw=Math.round($('single-brightness').valueAsNumber*255/100);updateLightingSlider('single-brightness','single-brightness-value');};
 $('single-brightness-apply').onclick=()=>singleAction('brightness');
-let lightingBrightnessReady=false,lightingModeReady=false,lightingState=null,lightingSavedBrightness=null,underLightState=null,underLightReady=false;
+let lightingBrightnessReady=false,lightingModeReady=false,lightingState=null,lightingSavedBrightness=null,underLightState=null,underLightReady=false,lightingCustomRgbPending=false,underCustomRgbPending=false,lightingSpeedDraft=null,underSpeedDraft=null;
+function appliedWithoutSave(error){return /was applied but could not be saved/.test(String(error?.message||''));}
 function discardLightingDraft(){
+ lightingSpeedDraft=null;underSpeedDraft=null;
  $('backlight-enabled').checked=!!lightingState?.enabled;
  if(singleState){$('single-active').checked=singleState.enabled;showSingleSelection();}
  if(lightingSavedBrightness!==null){$('lighting-brightness').value=Math.round(lightingSavedBrightness*100/255);updateLightingSlider('lighting-brightness','lighting-brightness-value');}
  if(lightingState){$('lighting-mode').value=lightingState.canSwitch?String(lightingState.mode):'';$('lighting-custom-rgb').checked=!!lightingState.customRgb;$('lighting-color').value=lightingState.color||'#000000';}
- $('lighting-speed').value=lightingState?.speed??'';
+ $('lighting-speed').min=0;$('lighting-speed').max=100;$('lighting-speed').value=lightingState?.canEditSpeed?speedToPercentUI(lightingState.speed,lightingState.speedMinimum,lightingState.speedMaximum):'';
  $('lighting-reverse').checked=!!lightingState?.reverse;
  if(underLightState)$('underlight-mode').value=underLightState.canSwitch?String(underLightState.mode):'';
  $('underlight-custom-rgb').checked=!!underLightState?.customRgb;$('underlight-color').value=underLightState?.color||'#000000';
- $('underlight-speed').min=0;$('underlight-speed').max=100;$('underlight-speed').value=underLightState?speedToPercent(underLightState.speed,underLightState.speedMinimum,underLightState.speedMaximum):'';
+ $('underlight-speed').min=0;$('underlight-speed').max=100;$('underlight-speed').value=underLightState?speedToPercentUI(underLightState.speed,underLightState.speedMinimum,underLightState.speedMaximum):'';
  $('underlight-brightness').value=underLightState?Math.round(underLightState.brightness*100/255):'';updateLightingSlider('underlight-brightness','underlight-brightness-value');
  $('underlight-enabled').checked=!!underLightState?.enabled;
  $('underlight-sync').checked=underLightState?.sync===1;
@@ -117,9 +122,14 @@ function updateLightingControls(){
  $('lighting-brightness').disabled=busy||!lightingBrightnessReady;$('lighting-apply').disabled=busy||!lightingBrightnessReady;
  $('lighting-mode').disabled=busy||!lightingModeReady;$('lighting-mode-apply').disabled=busy||!lightingModeReady;
  const colorReady=lightingModeReady&&lightingState?.canEditColor&&Number($('lighting-mode').value)===lightingState.mode;
- $('lighting-custom-rgb').disabled=busy||!colorReady||!lightingState?.supportsCustomRgb;$('lighting-color-apply').disabled=busy||!colorReady;
- $('lighting-custom-rgb').closest('label').hidden=lightingState?.mode===6;
- $('lighting-color').disabled=busy||!colorReady||(lightingState?.supportsCustomRgb&&!$('lighting-custom-rgb').checked);
+ const lightingCustomMode=Number($('lighting-mode').value)||Number(lightingState?.mode);
+ const lightingCustomHidden=![3,5,7].includes(lightingCustomMode);
+ const lightingCustomLabel=$('lighting-custom-rgb').closest('label');
+ lightingCustomLabel.hidden=lightingCustomHidden;
+ if(lightingCustomHidden)lightingCustomLabel.style.setProperty('display','none','important');else lightingCustomLabel.style.removeProperty('display');
+ $('lighting-custom-rgb').disabled=busy||!colorReady||!lightingState?.supportsCustomRgb;
+ $('lighting-color-apply').disabled=busy||!colorReady;
+ $('lighting-color').disabled=busy||!colorReady||(!lightingCustomHidden&&lightingState?.supportsCustomRgb&&!$('lighting-custom-rgb').checked);
  const speedReady=lightingModeReady&&lightingState?.canEditSpeed&&Number($('lighting-mode').value)===lightingState.mode;
  $('lighting-speed').closest('.lighting-section')?.classList.toggle('no-speed',!speedReady);
  $('lighting-speed').disabled=busy||!speedReady;$('lighting-speed-apply').disabled=busy||!speedReady;
@@ -127,9 +137,14 @@ function updateLightingControls(){
  $('lighting-reverse').disabled=busy||!directionReady;$('lighting-direction-apply').disabled=busy||!directionReady;
  $('underlight-mode').disabled=busy||!independentReady;$('underlight-apply').disabled=busy||!independentReady;
  const underColorReady=independentReady&&underLightState?.canEditColor&&Number($('underlight-mode').value)===underLightState.mode;
- $('underlight-custom-rgb').disabled=busy||!underColorReady||!underLightState?.supportsCustomRgb;$('underlight-color-apply').disabled=busy||!underColorReady;
- $('underlight-custom-rgb').closest('label').hidden=underLightState?.mode===7;
- $('underlight-color').disabled=busy||!underColorReady||(underLightState?.supportsCustomRgb&&!$('underlight-custom-rgb').checked);
+ const underCustomMode=Number($('underlight-mode').value)||Number(underLightState?.mode);
+ const underCustomHidden=!underLightState?.supportsCustomRgb||underCustomMode!==3;
+ const underCustomLabel=$('underlight-custom-rgb').closest('label');
+ underCustomLabel.hidden=underCustomHidden;
+ if(underCustomHidden)underCustomLabel.style.setProperty('display','none','important');else underCustomLabel.style.removeProperty('display');
+ $('underlight-custom-rgb').disabled=busy||!underColorReady||!underLightState?.supportsCustomRgb;
+ $('underlight-color-apply').disabled=busy||!underColorReady;
+ $('underlight-color').disabled=busy||!underColorReady||(!underCustomHidden&&underLightState?.supportsCustomRgb&&!$('underlight-custom-rgb').checked);
  const underSpeedReady=independentReady&&underLightState?.canEditSpeed&&Number($('underlight-mode').value)===underLightState.mode;
  const underSpeedBlock=$('underlight-speed')?.closest('.lighting-section');if(underSpeedBlock)underSpeedBlock.classList.toggle('no-speed',!underSpeedReady);
  $('underlight-speed').disabled=busy||!underSpeedReady;$('underlight-speed-apply').disabled=busy||!underSpeedReady;
@@ -138,20 +153,20 @@ $('backlight-enabled-apply').onclick=async()=>{
  if(busy||!lightingModeReady||!lightingState?.canEditEnabled)return;
  const enabled=$('backlight-enabled').checked;setBusy(true);
  try{const reply=await window.keyboard.setBackLightEnabled(enabled);if(!reply.ok)throw Error(reply.error);await readLightingMode();$('lighting-mode-status').textContent='Back Light power applied; device readback verified. Saved to device memory automatically.';}
- catch(error){lightingModeReady=false;$('lighting-mode-status').textContent=error.message;}finally{setBusy(false);}
+ catch(error){const applied=appliedWithoutSave(error);if(!applied)lightingModeReady=false;if(applied){try{await readLightingMode();}catch{}}$('lighting-mode-status').textContent=error.message;}finally{setBusy(false);}
 };
 $('underlight-sync-apply').onclick=async()=>{
  if(busy||!underLightReady||!underLightState?.canEditSync)return;
  const sync=$('underlight-sync').checked;setBusy(true);
  try{const reply=await window.keyboard.setUnderLightSync(sync);if(!reply.ok)throw Error(reply.error);await readUnderLight();$('underlight-status').textContent='Normal Sync applied; device readback verified. Saved to device memory automatically.';}
- catch(error){underLightReady=false;$('underlight-status').textContent=error.message;}
+ catch(error){const applied=appliedWithoutSave(error);if(!applied)underLightReady=false;if(applied){try{await readUnderLight();}catch{}}$('underlight-status').textContent=error.message;}
  finally{setBusy(false);}
 };
 $('underlight-enabled-apply').onclick=async()=>{
  if(busy||!underLightReady||!underLightState?.canEditEnabled)return;
  const enabled=$('underlight-enabled').checked;setBusy(true);
  try{const reply=await window.keyboard.setUnderLightEnabled(enabled);if(!reply.ok)throw Error(reply.error);await readUnderLight();$('underlight-status').textContent='Under Light power applied; device readback verified. Saved to device memory automatically.';}
- catch(error){underLightReady=false;$('underlight-status').textContent=error.message;}
+ catch(error){const applied=appliedWithoutSave(error);if(!applied)underLightReady=false;if(applied){try{await readUnderLight();}catch{}}$('underlight-status').textContent=error.message;}
  finally{setBusy(false);}
 };
 $('underlight-brightness-apply').onclick=async()=>{
@@ -160,48 +175,49 @@ $('underlight-brightness-apply').onclick=async()=>{
  if(!Number.isInteger(value)||value<0||value>255){$('underlight-status').textContent='Enter a whole number from 0 to 255.';return;}
  setBusy(true);
  try{const reply=await window.keyboard.setUnderLightBrightness(value);if(!reply.ok)throw Error(reply.error);await readUnderLight();$('underlight-status').textContent='Under Light brightness applied; device readback verified. Saved to device memory automatically.';}
- catch(error){underLightReady=false;$('underlight-status').textContent=error.message;}
+ catch(error){const applied=appliedWithoutSave(error);if(!applied)underLightReady=false;if(applied){try{await readUnderLight();}catch{}}$('underlight-status').textContent=error.message;}
  finally{setBusy(false);}
 };
 $('underlight-speed-apply').onclick=async()=>{
  if(busy||!underLightReady||!underLightState?.canEditSpeed||Number($('underlight-mode').value)!==underLightState.mode)return;
  const percent=$('underlight-speed').valueAsNumber,{speedMinimum:min,speedMaximum:max}=underLightState;
  if(!Number.isInteger(percent)||percent<0||percent>100){$('underlight-status').textContent='Choose a speed from 0 to 100%.';return;}
- const speed=percentToSpeed(percent,min,max);
+ const speed=percentToSpeedUI(percent,min,max);
  const request={mode:underLightState.mode,speed};setBusy(true);$('underlight-status').textContent='Applying Under Light speed and verifying device settings...';
- try{const reply=await window.keyboard.setUnderLightSpeed(request);if(!reply.ok)throw Error(reply.error);await readUnderLight();$('underlight-status').textContent='Under Light speed applied; configuration readback verified. Saved to device memory automatically.';}
- catch(error){underLightReady=false;$('underlight-status').textContent=error.message;}
+ try{const reply=await window.keyboard.setUnderLightSpeed(request);if(!reply.ok)throw Error(reply.error);await readUnderLight();$('underlight-status').textContent=underLightState?.speed!==request.speed?`Under Light speed was not applied (keyboard reports ${underLightState?.speed??'unknown'}).`:'Under Light speed applied; configuration readback verified. Saved to device memory automatically.';}
+ catch(error){const applied=appliedWithoutSave(error);if(!applied)underLightReady=false;if(applied){try{await readUnderLight();}catch{}}$('underlight-status').textContent=error.message;}
  finally{setBusy(false);}
 };
-$('underlight-mode').onchange=updateLightingControls;$('underlight-custom-rgb').onchange=updateLightingControls;
+$('underlight-mode').onchange=()=>{underCustomRgbPending=false;underSpeedDraft=null;updateLightingControls();updateLightingPreview();};$('underlight-custom-rgb').onchange=()=>{underCustomRgbPending=true;updateLightingControls();updateLightingPreview();};
 $('underlight-color-apply').onclick=async()=>{
  if(busy||!underLightReady||!underLightState?.canEditColor||Number($('underlight-mode').value)!==underLightState.mode)return;
- const request={mode:underLightState.mode,customRgb:underLightState.supportsCustomRgb?$('underlight-custom-rgb').checked:false,color:$('underlight-color').value};setBusy(true);
+ const request={mode:underLightState.mode,customRgb:underLightState.supportsCustomRgb?($('underlight-custom-rgb').closest('label').hidden?true:$('underlight-custom-rgb').checked):false,color:$('underlight-color').value};setBusy(true);
  $('underlight-status').textContent='Applying Under Light color and verifying device settings...';
- try{const reply=await window.keyboard.setUnderLightColor(request);if(!reply.ok)throw Error(reply.error);await readUnderLight();$('underlight-status').textContent='Under Light color applied; configuration readback verified. Saved to device memory automatically.';}
- catch(error){underLightReady=false;$('underlight-status').textContent=error.message;}
+ try{const reply=await window.keyboard.setUnderLightColor(request);if(!reply.ok)throw Error(reply.error);await readUnderLight();underCustomRgbPending=false;if(underLightState)$('underlight-custom-rgb').checked=!!underLightState.customRgb;$('underlight-status').textContent=request.customRgb&&underLightState&&!underLightState.customRgb?'Under Light color applied, but the keyboard reported Custom RGB off.':'Under Light color applied; configuration readback verified. Saved to device memory automatically.';}
+ catch(error){underCustomRgbPending=false;const applied=appliedWithoutSave(error);if(!applied)underLightReady=false;if(applied){try{await readUnderLight();}catch{}}$('underlight-status').textContent=error.message;}
  finally{setBusy(false);}
 };
 async function readUnderLight(){
  underLightReady=false;const reply=await window.keyboard.readUnderLight();if(!reply.ok)throw Error(reply.error);
- underLightState=reply.result;underLightReady=underLightState.canSwitch;
+ underLightState=reply.result;underSpeedDraft=null;underLightReady=underLightState.canSwitch;
  $('underlight-brightness').value=Math.round(underLightState.brightness*100/255);updateLightingSlider('underlight-brightness','underlight-brightness-value');
  $('underlight-enabled').checked=underLightState.enabled;
  $('underlight-sync').checked=underLightState.sync===1;
  $('underlight-sync-note').textContent=underLightState.sync===0?'Normal Sync is off. Independent effects are available.':'Disable Normal Sync to edit independent Under Light effects.';
  $('underlight-current').textContent=`Current effect: ${underLightState.name}`;
  $('underlight-mode').value=underLightReady?String(underLightState.mode):'';
- $('underlight-custom-rgb').checked=!!underLightState.customRgb;$('underlight-color').value=underLightState.color||'#000000';
- $('underlight-speed').min=0;$('underlight-speed').max=100;$('underlight-speed').value=underLightState.canEditSpeed?speedToPercent(underLightState.speed,underLightState.speedMinimum,underLightState.speedMaximum):'';updateLightingSlider('underlight-speed','underlight-speed-value');
- $('underlight-speed-note').textContent=underLightState.canEditSpeed?'0 to 100% of the effect speed range.':'This effect has no speed control.';
+ if(!underCustomRgbPending)$('underlight-custom-rgb').checked=!!underLightState.customRgb;$('underlight-color').value=underLightState.color||'#000000';
+ $('underlight-speed').min=0;$('underlight-speed').max=100;$('underlight-speed').value=underLightState.canEditSpeed?speedToPercentUI(underLightState.speed,underLightState.speedMinimum,underLightState.speedMaximum):'';updateLightingSlider('underlight-speed','underlight-speed-value');
+ $('underlight-speed-note').textContent=underLightState.canEditSpeed?'Adjust the Under Light effect speed.':'This effect has no speed control.';
  $('underlight-speed').closest('.lighting-section')?.classList.toggle('no-speed',!underLightState.canEditSpeed);
  $('underlight-status').textContent=underLightReady?'Effect read from keyboard. Normal Sync status is read automatically.':'This saved Under Light effect is not supported yet.';
+ updateLightingPreview();
 }
 async function underLightAction(apply=false){
  if(busy||(apply&&!underLightReady))return;
  const mode=Number($('underlight-mode').value);setBusy(true);
  try{if(apply){const reply=await window.keyboard.setUnderLightMode(mode);if(!reply.ok)throw Error(reply.error);}await readUnderLight();if(apply)$('underlight-status').textContent='Under Light applied; configuration readback verified. Saved to device memory automatically.';}
- catch(error){underLightReady=false;$('underlight-status').textContent=error.message;}
+ catch(error){const applied=appliedWithoutSave(error);if(!applied)underLightReady=false;if(applied){try{await readUnderLight();}catch{}}$('underlight-status').textContent=error.message;}
  finally{setBusy(false);}
 }
 $('underlight-read').onclick=()=>underLightAction();$('underlight-apply').onclick=()=>underLightAction(true);
@@ -210,41 +226,42 @@ $('lighting-direction-apply').onclick=async()=>{
  const request={mode:lightingState.mode,reverse:$('lighting-reverse').checked};setBusy(true);
  $('lighting-mode-status').textContent='Applying direction and verifying device settings...';
  try{const reply=await window.keyboard.setBackLightDirection(request);if(!reply.ok)throw Error(reply.error);await readLightingMode();$('lighting-mode-status').textContent='Direction applied; configuration readback verified. Saved to device memory automatically.';}
- catch(error){lightingModeReady=false;$('lighting-mode-status').textContent=error.message;}
+ catch(error){const applied=appliedWithoutSave(error);if(!applied)lightingModeReady=false;if(applied){try{await readLightingMode();}catch{}}$('lighting-mode-status').textContent=error.message;}
  finally{setBusy(false);}
 };
 $('lighting-speed-apply').onclick=async()=>{
  if(busy||!lightingModeReady||!lightingState?.canEditSpeed||Number($('lighting-mode').value)!==lightingState.mode)return;
- const speed=$('lighting-speed').valueAsNumber;
+ const percent=$('lighting-speed').valueAsNumber;
  const {speedMinimum:min,speedMaximum:max}=lightingState;
- if(!Number.isInteger(speed)||speed<min||speed>max){$('lighting-mode-status').textContent=`Enter a whole number from ${min} to ${max}.`;return;}
+ if(!Number.isInteger(percent)||percent<0||percent>100){$('lighting-mode-status').textContent='Choose a speed from 0 to 100%.';return;}
+ const speed=percentToSpeedUI(percent,min,max);
  setBusy(true);$('lighting-mode-status').textContent='Applying speed and verifying device settings...';
- try{const reply=await window.keyboard.setBackLightSpeed({mode:lightingState.mode,speed});if(!reply.ok)throw Error(reply.error);await readLightingMode();$('lighting-mode-status').textContent='Speed applied; configuration readback verified. Saved to device memory automatically.';}
- catch(error){lightingModeReady=false;$('lighting-mode-status').textContent=error.message;}
+ try{const reply=await window.keyboard.setBackLightSpeed({mode:lightingState.mode,speed});if(!reply.ok)throw Error(reply.error);await readLightingMode();$('lighting-mode-status').textContent=lightingState?.speed!==speed?`Speed was not applied (keyboard reports ${lightingState?.speed??'unknown'}).`:'Speed applied; configuration readback verified. Saved to device memory automatically.';}
+ catch(error){const applied=appliedWithoutSave(error);if(!applied)lightingModeReady=false;if(applied){try{await readLightingMode();}catch{}}$('lighting-mode-status').textContent=error.message;}
  finally{setBusy(false);}
 };
-$('lighting-mode').onchange=updateLightingControls;$('lighting-custom-rgb').onchange=updateLightingControls;
+$('lighting-mode').onchange=()=>{lightingCustomRgbPending=false;lightingSpeedDraft=null;updateLightingControls();updateLightingPreview();};$('lighting-custom-rgb').onchange=()=>{lightingCustomRgbPending=true;updateLightingControls();updateLightingPreview();};
+for(const id of ['lighting-color','underlight-color'])$(id)?.addEventListener('input',()=>updateLightingPreview());
 $('lighting-color-apply').onclick=async()=>{
  if(busy||!lightingModeReady||!lightingState?.canEditColor||Number($('lighting-mode').value)!==lightingState.mode)return;
- const request={mode:lightingState.mode,customRgb:lightingState.supportsCustomRgb?$('lighting-custom-rgb').checked:false,color:$('lighting-color').value};setBusy(true);
+ const request={mode:lightingState.mode,customRgb:lightingState.supportsCustomRgb?($('lighting-custom-rgb').closest('label').hidden?true:$('lighting-custom-rgb').checked):false,color:$('lighting-color').value};setBusy(true);
  $('lighting-mode-status').textContent='Applying color and verifying device settings...';
- try{const reply=await window.keyboard.setBackLightColor(request);if(!reply.ok)throw Error(reply.error);await readLightingMode();$('lighting-mode-status').textContent='Color applied; configuration readback verified. Saved to device memory automatically.';}
- catch(error){lightingModeReady=false;$('lighting-mode-status').textContent=error.message;}
+ try{const reply=await window.keyboard.setBackLightColor(request);if(!reply.ok)throw Error(reply.error);await readLightingMode();lightingCustomRgbPending=false;if(lightingState)$('lighting-custom-rgb').checked=!!lightingState.customRgb;$('lighting-mode-status').textContent=request.customRgb&&lightingState&&!lightingState.customRgb?'Color applied, but the keyboard reported Custom RGB off.':'Color applied; configuration readback verified. Saved to device memory automatically.';}
+ catch(error){lightingCustomRgbPending=false;const applied=appliedWithoutSave(error);if(!applied)lightingModeReady=false;if(applied){try{await readLightingMode();}catch{}}$('lighting-mode-status').textContent=error.message;}
  finally{setBusy(false);}
 };
 async function readLightingMode(){
  lightingModeReady=false;
  const reply=await window.keyboard.readBackLight();if(!reply.ok)throw Error(reply.error);
- const state=reply.result;lightingState=state;$('backlight-enabled').checked=state.enabled;$('lighting-mode-current').textContent=`Current effect: ${state.name}`;
- $('lighting-speed').value=state.speed??'';updateLightingSlider('lighting-speed','lighting-speed-value');
+ const state=reply.result;lightingState=state;lightingSpeedDraft=null;$('backlight-enabled').checked=state.enabled;$('lighting-mode-current').textContent=`Current effect: ${state.name}`;
+ $('lighting-speed').min=0;$('lighting-speed').max=100;$('lighting-speed').value=state.canEditSpeed?speedToPercentUI(state.speed,state.speedMinimum,state.speedMaximum):'';updateLightingSlider('lighting-speed','lighting-speed-value');
  $('lighting-reverse').checked=!!state.reverse;
- $('lighting-speed').min=state.speedMinimum??0;$('lighting-speed').max=state.speedMaximum??0;updateLightingSlider('lighting-speed','lighting-speed-value');
- $('lighting-speed-note').textContent=state.canEditSpeed?`${state.name} speed: ${state.speedMinimum} to ${state.speedMaximum}, matching MMPanel.`:'This effect has no speed control.';
+ $('lighting-speed-note').textContent=state.canEditSpeed?'Adjust the effect speed.':'This effect has no speed control.';
  $('lighting-speed').closest('.lighting-section')?.classList.toggle('no-speed',!state.canEditSpeed);
- $('lighting-custom-rgb').checked=!!state.customRgb;$('lighting-color').value=state.color||'#000000';
- $('lighting-color-note').textContent=state.mode===6?'Star uses the selected color directly. Single Light can override Back Light on assigned keys.':state.canEditColor?'Custom RGB overrides the effect palette. Choose an effect before editing its color. Single Light can override Back Light on assigned keys.':'This effect has no custom color control.';
+ if(!lightingCustomRgbPending)$('lighting-custom-rgb').checked=!!state.customRgb;$('lighting-color').value=state.color||'#000000'; $('lighting-color-note').textContent=state.mode===6?'Star uses its own blue palette with colored accents.':state.canEditColor?'The selected color is applied directly. Single Light can override Back Light on assigned keys.':'This effect has no custom color control.';
  lightingModeReady=state.canSwitch;$('lighting-mode').value=state.canSwitch?String(state.mode):'';
  $('lighting-mode-status').textContent=state.canSwitch?'Normal, Stream, Gradient, Star, Roll and Breath are available.':'Switching from this effect is in development; select a supported Back Light effect in MMPanel first.';
+ updateLightingPreview();
 }
 $('lighting-mode-apply').onclick=async()=>{
  if(busy||!lightingModeReady)return;
@@ -267,14 +284,18 @@ async function lightingBrightness(apply=false){
 }
 $('lighting-read').onclick=()=>lightingBrightness();$('lighting-apply').onclick=()=>lightingBrightness(true);
 ['lighting-brightness','lighting-speed','underlight-speed','underlight-brightness'].forEach(id=>$(id)?.addEventListener('input',()=>updateLightingSlider(id,`${id}-value`)));
+$('lighting-speed').addEventListener('input',()=>{if(lightingState?.canEditSpeed){lightingSpeedDraft=percentToSpeedUI($('lighting-speed').valueAsNumber,lightingState.speedMinimum,lightingState.speedMaximum);updateLightingPreview();}});
+$('underlight-speed').addEventListener('input',()=>{if(underLightState?.canEditSpeed){underSpeedDraft=percentToSpeedUI($('underlight-speed').valueAsNumber,underLightState.speedMinimum,underLightState.speedMaximum);updateLightingPreview();}});
+$('lighting-speed-value').style.display='none';$('underlight-speed-value').style.display='none';
+$('lighting-speed').closest('.lighting-section')?.classList.add('speed-section');$('underlight-speed').closest('.lighting-section')?.classList.add('speed-section');
 const remapPanel=document.createElement('section');remapPanel.className='panel';remapPanel.hidden=true;
 remapPanel.innerHTML='<small>PROGRAMMING</small><h2>Remap</h2><p>Assign one physical switch to another standard keyboard action. The source must be in Standard mode.</p><div class="controls"><label>Source switch<select id="remap-source"></select></label><label>Target action<select id="remap-target"></select></label></div><p id="remap-current"></p><div class="actions"><button id="remap-apply">Apply remap</button><span id="remap-status" role="status"></span></div><hr><h2>Layer assignment</h2><p>Assign FN1, FN2 or FN3, as in MMPanel.</p><div class="controls"><label>Source switch<select id="layer-source"></select></label><label>Target layer<select id="layer-target"><option value="0">FN1</option><option value="1">FN2</option><option value="2">FN3</option></select></label></div><p id="layer-current"></p><div class="actions"><button id="layer-apply">Apply FN</button><button id="layer-standard" disabled>Return to standard</button><span id="layer-standard-note"></span><span id="layer-status" role="status" aria-live="polite"></span></div><hr><h2>Media</h2><p>Choose or change a media or editing action.</p><div class="controls"><label>Source switch<select id="media-source"></select></label><label>Action<select id="media-action"></select></label></div><p id="media-current"></p><div class="actions"><button id="media-apply">Apply Media</button><button id="media-standard" disabled>Return to standard</button><span id="media-standard-note"></span><span id="media-status" role="status" aria-live="polite"></span></div>';
 pendingPanel.after(remapPanel);
-remapPanel.insertAdjacentHTML('beforeend','<hr><h2>Modify</h2><div class="modify-editor"><div id="modify-keyboard-panel" hidden></div><div id="modify-mouse-panel" hidden><div class="modify-mouse-grid">'+Object.entries(window.M6_MOUSE_ACTIONS||{}).filter(([id])=>['left-button','right-button','middle-button','wheel-up','wheel-down'].includes(id)).map(([id,action])=>'<button type="button" class="modify-mouse-key" data-mouse-action="'+id+'" title="'+action.label+'" aria-label="'+action.label+'">'+(window.M6_MOUSE_SVG?.[id]||'🖱')+'<span>'+action.label+'</span></button>').join('')+'</div></div><div class="modify-hotkey-row"><label class="hotkey-toggle"><span>HotKey</span><input id="modify-hotkey" type="checkbox"><i></i></label><label class="hotkey-interval">Interval <input id="modify-interval" type="range" min="0" max="255" step="1" value="0"><output id="modify-interval-value">0</output></label></div><div class="modify-hidden-fields"><select id="modify-type" hidden><option value="0">Keyboard</option><option value="1">Mouse</option></select><select id="modify-source"></select><select id="modify-target"></select><input id="modify-button" type="number" value="0"><input id="modify-x" type="number" value="0"><input id="modify-y" type="number" value="0"><input id="modify-wheel" type="number" value="0"><input id="modify-mode" type="number" value="0"></div><p id="modify-current"></p><div class="actions"><button id="modify-apply">Apply</button><span id="modify-status" role="status" aria-live="polite"></span></div></div>');
+remapPanel.insertAdjacentHTML('beforeend','<hr><h2>Modify</h2><div class="modify-editor"><div id="modify-keyboard-panel" hidden></div><div id="modify-mouse-panel" hidden><div class="modify-mouse-grid">'+Object.entries(window.M6_MOUSE_ACTIONS||{}).filter(([id])=>['left-button','right-button','middle-button','wheel-up','wheel-down'].includes(id)).map(([id,action])=>'<button type="button" class="modify-mouse-key" data-mouse-action="'+id+'" title="'+action.label+'" aria-label="'+action.label+'">'+(window.M6_MOUSE_SVG?.[id]||'ðŸ–±')+'<span>'+action.label+'</span></button>').join('')+'</div></div><div class="modify-hotkey-row"><label class="hotkey-toggle"><span>HotKey</span><span class="hotkey-switch"><input id="modify-hotkey" type="checkbox"><i></i></span></label><label class="hotkey-interval">Interval <input id="modify-interval" type="range" min="0" max="255" step="1" value="23"><output id="modify-interval-value">23</output></label></div><div class="modify-hidden-fields"><select id="modify-type" hidden><option value="0">Keyboard</option><option value="1">Mouse</option></select><select id="modify-source"></select><select id="modify-target"></select><input id="modify-button" type="number" value="0"><input id="modify-x" type="number" value="0"><input id="modify-y" type="number" value="0"><input id="modify-wheel" type="number" value="0"><input id="modify-mode" type="number" value="0"></div><p id="modify-current"></p><div class="actions"><button id="modify-apply">Apply</button><span id="modify-status" role="status" aria-live="polite"></span></div></div>');
 function fillHotKey(){if(!programming||!profile)return;const select=$('hotkey-source'),previous=select.value||selectedId;select.replaceChildren();for(const key of profile.layout){const option=document.createElement('option');option.value=key.id;option.textContent=`${key.label||'Space'} (${key.row+1}:${key.col+1})`;select.appendChild(option);}select.value=previous;updateHotKey();}
-function updateHotKey(){if(!programming)return;const [row,col]=$('hotkey-source').value.split(':').map(Number),key=programming.keys.find(k=>k.row===row&&k.col===col);if(!key)return;$('hotkey-interval').value=key.hotKey?.interval??0;$('hotkey-current').textContent=`Current mode: ${key.mode===0?'Standard':`Mode ${key.mode}`}. HotKey type: ${key.hotKey?.type??0}, interval: ${key.hotKey?.interval??0}.`;$('hotkey-apply').disabled=busy||key.mode!==0;}
+function updateHotKey(){if(!programming)return;const [row,col]=$('hotkey-source').value.split(':').map(Number),key=programming.keys.find(k=>k.row===row&&k.col===col);if(!key)return;$('hotkey-interval').value=key.hotKey?.interval??23;$('hotkey-current').textContent=`Current mode: ${key.mode===0?'Standard':`Mode ${key.mode}`}. HotKey type: ${key.hotKey?.type??0}, interval: ${key.hotKey?.interval??0}.`;$('hotkey-apply').disabled=busy||key.mode!==0;}
 $('hotkey-source').onchange=updateHotKey;$('hotkey-apply').onclick=async()=>{if(busy||!programming)return;setBusy(true);$('hotkey-status').textContent='Applying and verifying HotKey...';try{const reply=await window.keyboard.setHotKey({layer,id:$('hotkey-source').value,interval:$('hotkey-interval').valueAsNumber});if(!reply.ok)throw new Error(reply.error);programming=reply.result;fillHotKey();$('hotkey-status').textContent='HotKey applied and verified by readback.';}catch(e){$('hotkey-status').textContent=e.message;}finally{setBusy(false);updateHotKey();}};
-function fillRemap(){if(!profile)return;const source=profile.layout.map(k=>`<option value="${k.id}">${k.label||k.id}</option>`).join(''),targets=(window.M6_FULL_SIZE_KEYBOARD||[]).flatMap((row,r)=>row.map((label,c)=>label?`<option value="key:${r}:${c}">${label}</option>`:'')).join('');$('remap-source').innerHTML=source;$('remap-target').innerHTML=targets;$('remap-source').value=selectedId;updateRemapState();}
+function fillRemap(){if(!profile)return;const source=profile.layout.map(k=>`<option value="${k.id}">${k.label||k.id}</option>`).join(''),targets=(window.M6_FULL_SIZE_KEYBOARD||[]).flatMap((row,r)=>row.map((label,c)=>label?`<option value="key:${r}:${c}">${label}</option>`:'')).join('');$('remap-source').innerHTML=source;$('remap-target').innerHTML='<option value="">—</option>'+targets;$('remap-source').value=selectedId;updateRemapState();}
 remapPanel.insertAdjacentHTML('beforeend','<hr><h2>Off / Enable key</h2><p>Off disables the source switch selected above. Available for Standard, Media, FN, DKS, Snap Tap and SOCD assignments. The saved assignment is retained.</p><label><input id="key-enabled" type="checkbox"> Enable selected key</label><button id="key-enabled-apply">Apply key state</button><p id="key-enabled-status" role="status"></p>');
 $('key-enabled-apply').onclick=async()=>{
  if(busy||!programming)return;
@@ -284,7 +305,7 @@ $('key-enabled-apply').onclick=async()=>{
  catch(e){$('key-enabled-status').textContent=e.message;}
  finally{setBusy(false);updateRemapState();}
 };
-function updateRemapState(){if(!programming)return;const [row,col]=$('remap-source').value.split(':').map(Number),key=programming.keys.find(k=>k.row===row&&k.col===col);$('key-enabled').checked=key?.locked===0;$('key-enabled').disabled=busy||!key||![0,2,3,4,5,6].includes(key.mode);$('key-enabled-apply').disabled=busy||!key||![0,2,3,4,5,6].includes(key.mode);const target=key&&key.modify&&key.modify.type===0&&(key.modify.row!==key.row+1||key.modify.col!==key.col)?`key:${key.modify.row-1}:${key.modify.col}`:null;if(target)$('remap-target').value=target;$('remap-current').textContent=key?`Current mode: ${key.mode===0?'Standard':key.mode===2?'Media':key.mode===3?'FN/layer':key.mode===4?'DKS':key.mode===5?'Snap Tap':key.mode===6?'SOCD / AD Cancel':'Unsupported mode '+key.mode}.${target?' Target: '+fullSizeTargetLabel(key.modify.row-1,key.modify.col)+'.':''}` :'';$('remap-apply').disabled=busy||!key||key.mode!==0||$('remap-target').value===$('remap-source').value;if(typeof syncKeyLibrary==='function')syncKeyLibrary();}
+function updateRemapState(){if(!programming)return;const [row,col]=$('remap-source').value.split(':').map(Number),key=programming.keys.find(k=>k.row===row&&k.col===col);$('key-enabled').checked=key?.locked===0;$('key-enabled').disabled=busy||!key||![0,2,3,4,5,6].includes(key.mode);$('key-enabled-apply').disabled=busy||!key||![0,2,3,4,5,6].includes(key.mode);const target=key&&key.modify&&key.modify.type===0&&(key.modify.row!==key.row+1||key.modify.col!==key.col)?`key:${key.modify.row-1}:${key.modify.col}`:null;$('remap-target').value=target||'';$('remap-current').textContent=key?`Current mode: ${key.mode===0?'Standard':key.mode===2?'Media':key.mode===3?'FN/layer':key.mode===4?'DKS':key.mode===5?'Snap Tap':key.mode===6?'SOCD / AD Cancel':'Unsupported mode '+key.mode}.${target?' Target: '+fullSizeTargetLabel(key.modify.row-1,key.modify.col)+'.':''}` :'';$('remap-apply').disabled=busy||!key||key.mode!==0||!$('remap-target').value||$('remap-target').value===$('remap-source').value;if(typeof syncKeyLibrary==='function')syncKeyLibrary();updateProgrammingIndicators();}
  $('remap-source').onchange=()=>{updateRemapState();updateModifyState();};$('remap-target').onchange=()=>{if(typeof syncKeyLibrary==='function')syncKeyLibrary();};$('remap-apply').onclick=async()=>{if(busy||!programming)return;const source=$('remap-source').value,target=$('remap-target').value;if(source===target)return;setBusy(true);$('remap-status').textContent='Applying and verifying remap...';try{const reply=await window.keyboard.setRemap({layer,source,target});if(!reply.ok)throw new Error(reply.error);programming=reply.result;updateRemapState();$('remap-status').textContent='Remap applied and verified by readback.';}catch(e){$('remap-status').textContent=e.message;}finally{setBusy(false);updateRemapState();}};
 remapPanel.insertAdjacentHTML('beforeend','<div class="actions"><button id="programming-reset" class="secondary">Reset selected key to Standard</button><span id="programming-reset-status" role="status"></span></div>');
 $('programming-reset').onclick=async()=>{if(busy||!programming)return;setBusy(true);$('programming-reset-status').textContent='Resetting and verifying...';try{const reply=await window.keyboard.resetProgrammingKey({layer,id:$('remap-source').value});if(!reply.ok)throw new Error(reply.error);programming=reply.result;fillRemap();fillLayer();fillMedia();fillModify();fillHotKey();showPairState();showDksState();const partners=(reply.result.remainingPairSources||[]).map(k=>profile.layout.find(p=>p.id===k.id)?.label||k.id);$('programming-reset-status').textContent='Selected key reset and verified.'+(partners.length?' Remaining Snap/SOCD assignments pointing to this key: '+partners.join(', ')+'. Use Disable pair to clear both assignments.':'');}catch(e){$('programming-reset-status').textContent=e.message;}finally{setBusy(false);updateRemapState();}};
@@ -300,17 +321,18 @@ function updateModifyState(){
  if(!programming)return;
  const [row,col]=$('modify-source').value.split(':').map(Number),key=programming.keys.find(k=>k.row===row&&k.col===col);if(!key)return;
  const m=key.modify||{},type=m.type||0,target=`key:${Math.max(0,(m.row||1)-1)}:${m.col||0}`;
- $('modify-type').value=String(type);$('modify-target').value=target;$('modify-button').value=m.button||0;$('modify-x').value=m.x||0;$('modify-y').value=m.y||0;$('modify-wheel').value=m.wheel||0;$('modify-mode').value=m.mode||0;$('modify-hotkey').checked=m.mode===2;$('modify-interval').value=m.interval||0;$('modify-interval-value').textContent=m.interval||0;
+ $('modify-type').value=String(type);$('modify-target').value=target;$('modify-button').value=m.button||0;$('modify-x').value=m.x||0;$('modify-y').value=m.y||0;$('modify-wheel').value=m.wheel||0;$('modify-mode').value=m.mode||0;$('modify-hotkey').checked=m.mode===2;$('modify-interval').value=m.interval||23;$('modify-interval-value').textContent=m.interval||23;
  for(const button of remapPanel.querySelectorAll('[data-modify-type]'))button.setAttribute('aria-pressed',String(Number(button.dataset.modifyType)===type));
  $('modify-keyboard-panel').hidden=type===1;$('modify-mouse-panel').hidden=type!==1;const mouse=mouseActionFor(m);for(const button of remapPanel.querySelectorAll('[data-mouse-action]'))button.classList.toggle('selected',button.dataset.mouseAction===mouse);
  const label=type===1?(window.M6_MOUSE_ACTIONS?.[mouse]?.label||'Mouse action'):fullSizeTargetLabel((m.row||1)-1,m.col||0);
- $('modify-current').textContent=`${type===1?'Mouse':'Keyboard'}: ${label}${m.mode===2?` · HotKey ${m.interval||0}`:''}.`;
+ $('modify-current').textContent=`${type===1?'Mouse':'Keyboard'}: ${label}${m.mode===2?` - HotKey ${m.interval||0}`:''}.`;
  $('modify-apply').disabled=busy||key.mode!==0;
+ updateProgrammingIndicators();
 }
 $('modify-source').onchange=updateModifyState;
 for(const button of remapPanel.querySelectorAll('[data-modify-type]'))button.onclick=()=>{$('modify-type').value=button.dataset.modifyType;updateModifyState();};
 for(const button of remapPanel.querySelectorAll('[data-mouse-action]'))button.onclick=()=>{const action=window.M6_MOUSE_ACTIONS?.[button.dataset.mouseAction];if(!action)return;$('modify-type').value='1';$('modify-button').value=action.button;$('modify-x').value=action.x;$('modify-y').value=action.y;$('modify-wheel').value=action.wheel;updateModifyState();};
- $('modify-apply').onclick=async()=>{if(busy||!programming)return;const type=Number($('modify-type').value),parts=$('modify-target').value.split(':').slice(1).map(Number),modify={type,row:parts[0],col:parts[1],button:Number($('modify-button').value),x:Number($('modify-x').value),y:Number($('modify-y').value),wheel:Number($('modify-wheel').value),mode:$('modify-hotkey').checked?2:0,interval:$('modify-hotkey').checked?Number($('modify-interval').valueAsNumber):0};setBusy(true);$('modify-status').textContent='Applying and verifying...';try{const reply=await window.keyboard.setModify({layer,id:$('modify-source').value,modify});if(!reply.ok)throw new Error(reply.error);programming=reply.result;fillModify();$('modify-status').textContent='Applied and verified by readback.';}catch(e){$('modify-status').textContent=e.message;}finally{setBusy(false);updateModifyState();}};
+ $('modify-apply').onclick=async()=>{if(busy||!programming)return;const type=Number($('modify-type').value),parts=$('modify-target').value.split(':').slice(1).map(Number),modify={type,row:parts[0],col:parts[1],button:Number($('modify-button').value),x:Number($('modify-x').value),y:Number($('modify-y').value),wheel:Number($('modify-wheel').value),mode:$('modify-hotkey').checked?2:0,interval:$('modify-hotkey').checked?Number($('modify-interval').valueAsNumber):0};setBusy(true);$('modify-status').textContent='Applying and verifying...';try{const reply=await window.keyboard.setModify({layer,id:$('modify-source').value,modify});if(!reply.ok)throw new Error(reply.error);programming=reply.result;const appliedKey=reply.result.keys.find(k=>`${k.row}:${k.col}`===$('modify-source').value);if($('modify-hotkey').checked&&appliedKey?.modify?.mode!==2)throw new Error(`HotKey was not applied by the keyboard (readback mode ${appliedKey?.modify?.mode??'unknown'}).`);fillModify();$('modify-status').textContent='Applied and verified by readback.';}catch(e){$('modify-status').textContent=e.message;}finally{setBusy(false);updateModifyState();}};
 function fillMedia(){if(!profile||!programming)return;const select=$('media-source'),previous=select.value||selectedId;select.replaceChildren();for(const key of profile.layout){const option=document.createElement('option');option.value=key.id;option.textContent=`${key.label||'Space'} (${key.row+1}:${key.col+1})`;select.appendChild(option);}select.value=previous;updateMediaState();}
 function fillLayer(){if(!profile||!programming)return;const select=$('layer-source'),previous=select.value||selectedId;select.replaceChildren();for(const key of profile.layout){const option=document.createElement('option');option.value=key.id;option.textContent=`${key.label||'Space'} (${key.row+1}:${key.col+1})`;select.appendChild(option);}select.value=previous;updateLayerState();}
 function standardReturnReason(key){
@@ -325,7 +347,7 @@ function updateStandardReturn(name,key){
  const reason=standardReturnReason(key),button=$(name+'-standard');button.disabled=busy||!!reason;button.title=reason||'Restore the standard keyboard action.';
  $(name+'-standard-note').textContent=reason;
 }
-function updateLayerState(){if(!programming)return;const [row,col]=$('layer-source').value.split(':').map(Number),key=programming.keys.find(k=>k.row===row&&k.col===col);if(!key)return;$('layer-current').textContent=`Current mode: ${key.mode===0?'Standard':key.mode===3?'Layer':'Mode '+key.mode}. Assigned layer: ${[0,1,2].includes(key.layer?.layer)?'FN'+(key.layer.layer+1):'None'}.`;$('layer-target').value=String([0,1,2].includes(key.layer?.layer)?key.layer.layer:0);$('layer-apply').disabled=busy||![0,3].includes(key.mode);updateStandardReturn('layer',key);}
+function updateLayerState(){if(!programming)return;const [row,col]=$('layer-source').value.split(':').map(Number),key=programming.keys.find(k=>k.row===row&&k.col===col);if(!key)return;$('layer-current').textContent=`Current mode: ${key.mode===0?'Standard':key.mode===3?'Layer':'Mode '+key.mode}. Assigned layer: ${[0,1,2].includes(key.layer?.layer)?'FN'+(key.layer.layer+1):'None'}.`;$('layer-target').value=String([0,1,2].includes(key.layer?.layer)?key.layer.layer:0);$('layer-apply').disabled=busy||![0,3].includes(key.mode);updateStandardReturn('layer',key);updateProgrammingIndicators();}
 $('layer-source').onchange=updateLayerState;$('layer-apply').onclick=async()=>{if(busy||!programming)return;setBusy(true);$('layer-status').textContent='Applying and verifying Layer assignment...';try{const reply=await window.keyboard.setLayerAssignment({layer,id:$('layer-source').value,targetLayer:Number($('layer-target').value)});if(!reply.ok)throw new Error(reply.error);programming=reply.result;fillLayer();$('layer-status').textContent='Layer assignment applied and verified by readback.';}catch(e){$('layer-status').textContent=e.message;}finally{setBusy(false);updateLayerState();}};
 function updateMediaState(){
  if(!programming)return;
@@ -336,7 +358,7 @@ function updateMediaState(){
  if(!current){const option=document.createElement('option');option.value='';option.textContent='Unknown saved action - choose a replacement';option.disabled=true;select.prepend(option);}
  select.value=current?.id??'';
  $('media-current').textContent=`Current mode: ${key.mode===0?'Standard':key.mode===2?'Media':`Mode ${key.mode}`}. Saved action: ${current?.label??'Unknown'}.`;
- $('media-apply').disabled=busy||![0,2].includes(key.mode)||!select.value;updateStandardReturn('media',key);
+ $('media-apply').disabled=busy||![0,2].includes(key.mode)||!select.value;updateStandardReturn('media',key);updateProgrammingIndicators();
 }
 $('media-source').onchange=updateMediaState;
 $('media-action').onchange=()=>{const [row,col]=$('media-source').value.split(':').map(Number);const key=programming?.keys.find(k=>k.row===row&&k.col===col);$('media-apply').disabled=busy||![0,2].includes(key?.mode)||!$('media-action').value;};
@@ -440,6 +462,13 @@ async function calibrationCommand(command){
   }catch(error){$('calibration-status').textContent=error.message;}
   finally{setBusy(false);}
 }
+async function cancelCalibrationOnExit(){
+  if(!calibrationActive)return;
+  if(typeof stopCalibrationPoll==='function')stopCalibrationPoll();
+  setCalibrationActive(false);
+  try{await window.keyboard.calibrationCommand(3);}catch{}
+}
+window.cancelCalibrationOnExit=cancelCalibrationOnExit;
 $('calibration-start').onclick=()=>calibrationCommand(1);
 $('calibration-reset').onclick=async()=>{
   if(busy||!calibrationStateKnown||calibrationActive)return;
@@ -499,10 +528,10 @@ async function refreshCalibration(silent=false,generation){
       if(calibrationSelectedIds.has(physical.id))key.classList.add('chosen');
       if(changed)key.classList.add('changed');
       key.style.left=`${3+physical.x/680*94}%`;key.style.top=`${18+physical.y*1.65}px`;key.style.width=`${physical.width/680*94}%`;
-      const stateLabel=liveRecord?(liveRecord.rangeStatus==='ok'?'OK · live':liveRecord.rangeStatus):pending?'Pending':stored.rangeStatus==='ok'?'OK':stored.rangeStatus;
-      const values=liveRecord?`${liveRecord.min} / ${liveRecord.max}`:`${stored.min} / ${stored.max}${pending?' · stored':''}`;
+      const stateLabel=liveRecord?(liveRecord.rangeStatus==='ok'?'OK - live':liveRecord.rangeStatus):pending?'Pending':stored.rangeStatus==='ok'?'OK':stored.rangeStatus;
+      const values=liveRecord?`${liveRecord.min} / ${liveRecord.max}`:`${stored.min} / ${stored.max}${pending?' - stored':''}`;
       for(const value of [physical.label||'Space',stateLabel,values]){const label=document.createElement('span');label.textContent=value;key.appendChild(label);}
-      key.title=liveRecord?`${physical.label}: live sensor min ${liveRecord.min}, max ${liveRecord.max}`:`${physical.label}: stored sensor min ${stored.min}, max ${stored.max}${pending?' (no live measurement received yet)':''}${previous?` · was ${previous.min} / ${previous.max}`:''}. Tap to select for single-switch calibration.`;
+      key.title=liveRecord?`${physical.label}: live sensor min ${liveRecord.min}, max ${liveRecord.max}`:`${physical.label}: stored sensor min ${stored.min}, max ${stored.max}${pending?' (no live measurement received yet)':''}${previous?` - was ${previous.min} / ${previous.max}`:''}. Tap to select for single-switch calibration.`;
       key.onclick=()=>selectCalibrationKey(physical.id);
       fragment.appendChild(key);
     }
@@ -511,10 +540,10 @@ async function refreshCalibration(silent=false,generation){
     const changed=calibrationPreviousRanges?[...ranges].filter(([id,value])=>calibrationPreviousRanges.get(id)!==value).length:null;
     calibrationPreviousRanges=ranges;calibrationReadCount++;
     const telemetryDetail=data.live?.active?` Frames: ${data.live.frames??0}${data.live.rejected?`, rejected: ${data.live.rejected}`:''}${data.live.error?`, error: ${data.live.error}`:''}.`:'';
-    const liveStatus=data.live?.active?(data.live.available?` Live calibration telemetry: ${data.live.count}/${data.layout.length} switches. Values marked “live”; remaining values are stored.${telemetryDetail}`:` Live telemetry not observed yet; values shown are stored and remaining switches are Pending.${telemetryDetail}`):'';
+    const liveStatus=data.live?.active?(data.live.available?` Live calibration telemetry: ${data.live.count}/${data.layout.length} switches. Values marked (live); remaining values are stored.${telemetryDetail}`:` Live telemetry not observed yet; values shown are stored and remaining switches are Pending.${telemetryDetail}`):'';
     $('calibration-read-status').textContent=`Updated: ${data.readAt}. Successful reads: ${calibrationReadCount}. ${changed===null?'First reading.':`Ranges changed since previous read: ${changed}/${data.layout.length}.`}${liveStatus}${data.live?.active?'':' Updated confirms a successful read, not a new calibration measurement.'}`;
     const live=$('calibration-live');
-    if(live&&calibrationActive){const d=data.live,stamp=new Date().toLocaleTimeString();live.textContent=(d?.active?(d.available?`LIVE · ${d.count}/${data.layout.length} switches · frames ${d.frames??0}${d.rejected?` · rejected ${d.rejected}`:''}`:'LIVE · telemetry not observed yet'):'LIVE · waiting for telemetry')+` · updated ${stamp}`;}
+    if(live&&calibrationActive){const d=data.live,stamp=new Date().toLocaleTimeString();live.textContent=(d?.active?(d.available?`LIVE - ${d.count}/${data.layout.length} switches - frames ${d.frames??0}${d.rejected?` - rejected ${d.rejected}`:''}`:'LIVE - telemetry not observed yet'):'LIVE - waiting for telemetry')+` - updated ${stamp}`;}
     const summary=Object.entries(data.statusSummary||{}).map(([name,count])=>`${name}: ${count}`).join(' ? ');
     if(!silent)$('calibration-status').textContent=`Read ${data.layout.length} switches${summary?` ? ${summary}`:''}. Backup: ${data.backup}`;
     if(data.comparison){
@@ -594,13 +623,15 @@ function setBusy(value) {
   $('apply').title='Apply these values to every switch in the edited profile';
   $('preset-off').disabled=value||!programming;
   $('preset-off').textContent='Off';
-  $('preset-off').title='Disable WASD DKS and A/D SNAP in the current profile; custom assignments are checked first';
+  $('preset-off').title='Restore W/A/S/D to Standard in the current profile; custom assignments are checked first';
+  $('preset-defaults').title=$('preset-off').title;
   $('pair-apply').disabled=value||!programming;
   $('pair-disable').disabled=value||!programming;
   $('dks-apply').disabled=value||!programming;$('dks-disable').disabled=value||!programming;
   $('dks-preview-all').disabled=value||!programming;
   $('dks-wasd').disabled=value||!programming;$('dks-wasd-disable').disabled=value||!programming;
   $('snap-ad').disabled=value||!programming;$('snap-ad-disable').disabled=value||!programming;
+  $('cl-ad').disabled=value||!programming;$('preset-defaults').disabled=value||!programming;
   for(const name of ['hotkey','modify','layer','media','remap']) {
     const [row,col]=$(name+'-source').value.split(':').map(Number);
     const key=programming?.keys.find(k=>k.row===row&&k.col===col);
@@ -647,22 +678,25 @@ function programmingBadge(assignment){
  const labelFor=id=>profile?.layout.find(k=>k.id===id)?.label||id;
  if(assignment.mode===5)return {text:'SNAP',kind:'snap'};
  if(assignment.mode===6)return {text:'SOCD',kind:'snap'};
- if(assignment.mode===4)return {text:assignment.dks?.type===1?'DKS·MOUSE':'DKS',kind:'dks'};
+ if(assignment.mode===4){const d=assignment.dks||{};return {text:d.type===1?'DKS-MOUSE':d.row>0?`DKS→${fullSizeTargetLabel(d.row-1,d.col)}`:'DKS',kind:'dks'};}
  if(assignment.mode===3)return {text:[0,1,2].includes(assignment.layer?.layer)?`FN${assignment.layer.layer+1}`:'FN',kind:'fn'};
  if(assignment.mode===2)return {text:'MEDIA',kind:'media'};
  if(assignment.mode===0&&assignment.modify?.type===1)return {text:mouseActionFor(assignment.modify)||'MOUSE',kind:'remap'};
  if(assignment.mode===0&&assignment.modify?.type===0&&assignment.modify.row>=1&&(assignment.modify.row!==assignment.row+1||assignment.modify.col!==assignment.col)){
-  return {text:`→${fullSizeTargetLabel(assignment.modify.row-1,assignment.modify.col)}`,kind:'remap'};
+  return {text:`â†’${fullSizeTargetLabel(assignment.modify.row-1,assignment.modify.col)}`,kind:'remap'};
  }
  return null;
 }
 function updateProgrammingIndicators(){
  const disabled=[];
+ const dksTargets=new Set();
+ if(programming)for(const item of programming.keys){if(item.mode===4&&item.dks?.type===0&&item.dks.row>0)dksTargets.add(`${item.dks.row-1}:${item.dks.col}`);}
  for(const button of $('keyboard').querySelectorAll('.key')){
   const assignment=programming?.keys.find(k=>k.row+':'+k.col===button.dataset.id);
   const off=assignment?.locked===1;button.classList.toggle('key-off',off);
   const badge=programmingBadge(assignment);
   if(badge){button.dataset.assignment=badge.text;button.dataset.assignmentKind=badge.kind;}else{delete button.dataset.assignment;delete button.dataset.assignmentKind;}
+  button.classList.toggle('key-dks-target',dksTargets.has(button.dataset.id));
   if(!profile){const unavailable=button.querySelector('.key-label').textContent+', device state unavailable';button.title=unavailable;button.setAttribute('aria-label',unavailable);}
   if(off)disabled.push(button.querySelector('.key-label').textContent);
  }
@@ -701,7 +735,117 @@ function drawKeyboard() {
     };
     $('keyboard').appendChild(button);
   }
+  updateLightingPreview();
 }
+function activeLightingLayer(){return document.querySelector('[data-lighting-layer]:not([hidden])')?.dataset.lightingLayer||'back';}
+const LIGHTING_EFFECT_NAMES={
+ back:{1:'eq',2:'normal',3:'breath',4:'gradient',5:'stream',6:'star',7:'roll'},
+ under:{3:'breath',4:'gradient',5:'stream',6:'star',7:'normal'}
+};
+const LIGHTING_EFFECT_DURATIONS={eq:1.8,breath:12,gradient:14,stream:2.8,star:5,roll:2.8,normal:0};
+function lightingEffectName(layer,mode){return LIGHTING_EFFECT_NAMES[layer]?.[Number(mode)]||'';}
+function lightingEffectDuration(name){return LIGHTING_EFFECT_DURATIONS[name]||3;}
+function lightingPreviewDuration(name,state,draft){
+ if(name==='eq')return 1.8;
+ if(!name||name==='normal')return 0;
+ const speed=Number.isFinite(draft)?draft:Number(state?.speed);
+ if(Number.isFinite(speed)&&speed>0)return Math.max(1,Math.min(30,speed/1000));
+ return lightingEffectDuration(name);
+}
+function lightingPreviewColor(input,state,fallback){
+ const draft=String(input?.value||'').toLowerCase();
+ if(/^#[0-9a-f]{6}$/.test(draft)&&draft!=='#000000')return draft;
+ const saved=String(state?.color||'').toLowerCase();
+ return /^#[0-9a-f]{6}$/.test(saved)&&saved!=='#000000'?saved:fallback;
+}
+function resetLightingPreview(){
+ const board=$('keyboard');if(!board)return;
+ for(const key of board.querySelectorAll('.key')){
+  for(const name of [...key.classList])if(name.startsWith('key-preview'))key.classList.remove(name);
+  for(const name of ['--preview-color','--preview-delay','--preview-duration','--preview-hue','--preview-brightness','--preview-direction'])key.style.removeProperty(name);
+ }
+ board.classList.remove('keyboard-back-preview','keyboard-rim','keyboard-stream-wave');
+ delete board.dataset.backEffect;delete board.dataset.rimEffect;delete board.dataset.rimMode;delete board.dataset.underEffect;
+ for(const name of ['--preview-brightness','--rim-color','--rim-duration','--rim-brightness','--rim-direction','--under-color','--under-duration','--under-brightness','--under-direction'])board.style.removeProperty(name);
+}
+function updateLightingPreview(){
+ const board=$('keyboard');if(!board)return;
+ resetLightingPreview();
+ const keys=[...board.querySelectorAll('.key')];
+ if(document.body.dataset.page!=='lighting'||!keys.length)return;
+ const brightness=Math.max(0,Math.min(1,(lightingSavedBrightness??255)/255));
+ const singleIds=new Set(singleState?.enabled?singleState.keys.filter(key=>key.enabled).map(key=>key.id):[]);
+ const backState=lightingState;
+ const backSelect=Number($('lighting-mode')?.value);
+ const backMode=Number.isInteger(backSelect)&&backSelect?backSelect:Number(backState?.mode);
+ const backName=lightingEffectName('back',backMode);
+ const backCustomRgb=backState?.supportsCustomRgb?($('lighting-custom-rgb').closest('label').hidden?true:$('lighting-custom-rgb').checked):false;
+ if(backState?.enabled&&backName){
+  const color=lightingPreviewColor($('lighting-color'),backState,'#58b9ff');
+  const duration=lightingPreviewDuration(backName,backState,lightingSpeedDraft);
+  const reverse=!!backState.reverse;
+  board.dataset.backEffect=backName;board.classList.add('keyboard-back-preview');
+  board.style.setProperty('--preview-brightness',String(brightness));
+  for(const [index,key] of keys.entries()){
+   if(singleIds.has(key.dataset.id))continue;
+   const [row,col]=key.dataset.id.split(':').map(Number);
+   const delay=backName==='gradient'||backName==='star'||backName==='breath'?0:backName==='roll'?Number((-row*.16).toFixed(3)):Number((-(13-col)*.075-row*.02).toFixed(3));
+   const hue=Math.round((col*23+row*8)%360);
+   const usePalette=backName==='eq'||(['stream','roll'].includes(backName)&&!backCustomRgb);
+   let previewColor=backName==='gradient'?'hsl(120 78% 46%)':backName==='breath'?(backCustomRgb?color:'hsl(120 78% 46%)'):usePalette?`hsl(${hue} 92% 64%)`:color;
+   const starSeed=(row*73+col*151+37)%97;
+   const starAccent=backName==='star'&&starSeed<40;
+   if(backName==='star')previewColor=`hsl(${(240-col*20-row*3+360)%360} 90% 55%)`;
+   key.classList.add('key-preview','key-preview-back','key-preview-effect-'+backName);
+   if(backName==='breath')key.classList.add(backCustomRgb?'key-preview-breath-custom':'key-preview-breath-palette');
+   key.style.setProperty('--preview-color',previewColor);
+   key.style.setProperty('--preview-hue',String(hue));
+   key.style.setProperty('--preview-delay',`${delay}s`);
+   key.style.setProperty('--preview-duration',`${duration}s`);
+   key.style.setProperty('--preview-direction',reverse?'reverse':'normal');
+   if(starAccent){
+    key.classList.add('key-preview-star-accent');
+    key.style.setProperty('--star-accent',['#ff4dc4','#4dff88','#4dd2ff','#ffb84d'][starSeed%4]);
+    key.style.setProperty('--preview-delay',`${(-((starSeed%13)/13*duration)).toFixed(3)}s`);
+   }
+  }
+ }
+ const underState=underLightState;
+ let rim=null;
+ if(underState?.enabled){
+  const sync=underState.sync===1&&!!backState;
+  const underSelect=Number($('underlight-mode')?.value);
+  const underMode=sync?Number(backState.mode):Number.isInteger(underSelect)&&underSelect?underSelect:Number(underState.mode);
+  const underName=sync?lightingEffectName('back',underMode):lightingEffectName('under',underMode);
+  if(underName){
+   const color=sync?lightingPreviewColor($('lighting-color'),backState,'#58b9ff'):lightingPreviewColor($('underlight-color'),underState,'#6fcbff');
+   const reverse=sync?!!backState.reverse:!!underState.reverse;
+   const rawUnderBrightness=Number(underState.brightness);
+   const underBrightness=sync?brightness:Math.max(0,Math.min(1,(Number.isFinite(rawUnderBrightness)?rawUnderBrightness:255)/255));
+   const underCustom=sync?backCustomRgb:!!$('underlight-custom-rgb').checked;
+   let rimMode=underName;
+   if(underName==='breath')rimMode=underCustom?'breath-custom':'breath-palette';
+   else if(underName==='gradient')rimMode='gradient-cycle';
+   else if(underName==='stream')rimMode='stream';
+   else if(underName==='star')rimMode='star';
+   else if(underName==='roll')rimMode='roll';
+   else if(underName==='normal')rimMode='normal';
+   const baseDuration=lightingPreviewDuration(underName,sync?backState:underState,sync?lightingSpeedDraft:underSpeedDraft);
+   const rimDuration=underName==='normal'?0:underName==='breath'?baseDuration*4:underName==='stream'||underName==='star'?baseDuration*1.5:baseDuration;
+   rim={name:underName,mode:rimMode,color,brightness:underBrightness,reverse,duration:Math.min(60,rimDuration)};
+  }
+ }
+ if(rim){
+  board.classList.add('keyboard-rim');
+  board.dataset.rimEffect=rim.name;board.dataset.rimMode=rim.mode;
+  const rimColor=rim.mode==='breath-palette'||rim.mode==='gradient-cycle'?'#22c55e':rim.mode==='stream'||rim.mode==='roll'?'#4dd2ff':rim.mode==='star'?'#2f7bff':rim.color;
+  board.style.setProperty('--rim-color',rimColor);
+  board.style.setProperty('--rim-duration',`${rim.duration}s`);
+  board.style.setProperty('--rim-brightness',String(rim.brightness));
+  board.style.setProperty('--rim-direction',rim.reverse?'reverse':'normal');
+ }
+}
+window.updateLightingPreview=updateLightingPreview;
 async function loadProfile(nextLayer=layer) {
   if(busy)return;
   discardLightingDraft();
@@ -710,7 +854,7 @@ async function loadProfile(nextLayer=layer) {
     const reply=await window.keyboard.readProfile(nextLayer);
     if(!reply.ok)throw new Error(reply.error);
     layer=nextLayer;profile=reply.result;
-    $('preset-preview').textContent=`M${layer+1}: DKS changes W, A, S and D (W/S and A/D targets, interval 20). SNAP pairs A and D and keeps W/S unchanged. DKS replaces A/D SNAP. Off disables both presets.`;
+    $('preset-preview').textContent=`M${layer+1}: DKS changes W, A, S and D (W/S and A/D targets, interval 20). SNAP and CL affect A and D while preserving W/S. Off / Restore WASD defaults clears all four.`;
     $('preset-status').textContent='';
     programming=null;
     drawKeyboard();showSelected();
@@ -758,6 +902,12 @@ async function recoverConnection(){
     if(profile){
       if(status)status.textContent='Keyboard reconnected - device data loaded';
       const page=document.body.dataset.page;
+      if(page!=='lighting'){
+        try{await readLightingMode();}catch{}
+        try{await readUnderLight();}catch{}
+        try{await readSingleLight();}catch{}
+        updateLightingPreview();
+      }
       if(page==='lighting')lightingBrightness().catch(()=>{});
       else if(page==='settings')deviceSettingsAction();
       else if(page==='calibration')refreshCalibration(true).catch(()=>{});
@@ -851,15 +1001,18 @@ function showPairState(){
     if(!physical)return 'Select a switch';
     const key=programming.keys.find(k=>k.row===physical.row&&k.col===physical.col);
     return key?`${physical.label}: ${names[key.mode]||'Other mode'}${key.locked?' (key disabled)':''}`:`${physical.label}: Unreadable`;
-  }).join(' · ');
+  }).join(' - ');
 }
 function showDksState(){
   const [row,col]=$('dks-source').value.split(':').map(Number),key=programming?.keys.find(k=>k.row===row&&k.col===col);
   if(!key)return;
-  if(key.dks.type===0&&key.dks.row>0)$('dks-target').value=`${key.dks.row-1}:${key.dks.col}`;
-  if(key.dks.type===1)$('dks-target').value=key.dks.mouseAction?`mouse:${key.dks.mouseAction}`:'';
+  if(key.mode===4){
+    if(key.dks.type===0&&key.dks.row>0)$('dks-target').value=`${key.dks.row-1}:${key.dks.col}`;
+    if(key.dks.type===1)$('dks-target').value=key.dks.mouseAction?`mouse:${key.dks.mouseAction}`:'';
+  }else $('dks-target').value='';
   $('dks-interval').value=key.mode===4?key.dks.interval:(key.dks.interval>=10&&key.dks.interval<=100?key.dks.interval:20);
-  $('dks-status').textContent=key.mode===4?(key.locked?'DKS assigned; key disabled.':'DKS enabled.'):`DKS disabled (assignment mode ${key.mode}).`;
+  $('dks-status').textContent=key.mode===4?(key.locked?'DKS assigned; key disabled.':'DKS enabled.'):`DKS disabled (assignment mode ${key.mode}). Choose a target to enable.`;
+  if(typeof syncProgrammingSlots==='function')syncProgrammingSlots();
 }
 $('dks-source').onchange=showDksState;
 async function applyDks(enabled){
@@ -869,7 +1022,7 @@ async function applyDks(enabled){
   try{
     const reply=await window.keyboard.setDks({layer,id:$('dks-source').value,target:$('dks-target').value,interval:$('dks-interval').valueAsNumber,enabled});
     if(!reply.ok)throw new Error(reply.error);
-    programming=reply.result;showPairState();showDksState();updateProgrammingIndicators();$('dks-status').textContent='DKS assignment verified.';
+    programming=reply.result;showPairState();showDksState();updateProgrammingIndicators();clearDksSelection();$('dks-status').textContent='DKS assignment verified.';
   }catch(error){$('dks-status').textContent=error.message;}finally{setBusy(false);}
 }
 async function applyWasd(enabled){
@@ -877,7 +1030,7 @@ async function applyWasd(enabled){
   setBusy(true);$('preset-status').textContent='Applying WASD and verifying all assignments...';
   try{
     const reply=enabled?await window.keyboard.quickPreset({layer,preset:'dks'}):await window.keyboard.setDksWasd({layer,enabled});if(!reply.ok)throw new Error(reply.error);
-    programming=reply.result;showPairState();showDksState();updateProgrammingIndicators();$('preset-status').textContent=enabled?'DKS enabled on W, A, S and D.':'WASD DKS disabled.';
+    programming=reply.result;showPairState();showDksState();updateProgrammingIndicators();clearDksSelection();$('preset-status').textContent=enabled?'DKS enabled on W, A, S and D.':'WASD DKS disabled.';
   }catch(error){$('preset-status').textContent=error.message;}finally{setBusy(false);}
 }
 async function applySnapPreset(enabled){
@@ -886,28 +1039,43 @@ async function applySnapPreset(enabled){
   try{
     const reply=enabled?await window.keyboard.quickPreset({layer,preset:'snap'}):await window.keyboard.setPair({layer,first:'2:1',second:'2:3',mode:0});
     if(!reply.ok)throw new Error(reply.error);
-    programming=reply.result;showPairState();showDksState();updateProgrammingIndicators();$('preset-status').textContent=enabled?'SNAP enabled on A and D; W/S unchanged.':'A / D SNAP disabled.';
+    programming=reply.result;showPairState();showDksState();updateProgrammingIndicators();clearPairSelection();$('preset-status').textContent=enabled?'SNAP enabled on A and D; W/S unchanged.':'A / D SNAP disabled.';
   }catch(error){$('preset-status').textContent=error.message;}finally{setBusy(false);}
 }
-$('snap-ad').onclick=()=>applySnapPreset(true);$('snap-ad-disable').onclick=()=>applySnapPreset(false);
-$('dks-wasd').onclick=()=>applyWasd(true);$('dks-wasd-disable').onclick=()=>applyWasd(false);
-$('preset-off').onclick=async()=>{
+async function applyClPreset(){
+  if(busy||!programming)return;
+  setBusy(true);$('preset-status').textContent='Applying CL to A / D and verifying...';
+  try{
+    const reply=await window.keyboard.quickPreset({layer,preset:'cl'});
+    if(!reply.ok)throw new Error(reply.error);
+    programming=reply.result;showPairState();showDksState();updateProgrammingIndicators();clearPairSelection();
+    $('preset-status').textContent='CL enabled on A and D; W/S unchanged.';
+  }catch(error){$('preset-status').textContent=error.message;}finally{setBusy(false);}
+}
+async function applyPresetOff(){
+  if(busy||!programming)return;
   setBusy(true);$('preset-status').textContent='Disabling quick presets and verifying all assignments...';
   try{
     const reply=await window.keyboard.presetOff({layer});if(!reply.ok)throw new Error(reply.error);
-    programming=reply.result;showPairState();showDksState();
+    programming=reply.result;showPairState();showDksState();updateProgrammingIndicators();clearDksSelection();clearPairSelection();
     $('preset-status').textContent=reply.result.changed?'Quick presets disabled. Device readback verified.':'Quick presets are already off.';
   }catch(error){$('preset-status').textContent=error.message;}finally{setBusy(false);}
-};
+}
+$('snap-ad').onclick=()=>applySnapPreset(true);$('snap-ad-disable').onclick=()=>applySnapPreset(false);
+$('cl-ad').onclick=applyClPreset;
+$('dks-wasd').onclick=()=>applyWasd(true);$('dks-wasd-disable').onclick=()=>applyWasd(false);
+$('preset-off').onclick=applyPresetOff;$('preset-defaults').onclick=applyPresetOff;
 $('dks-apply').onclick=()=>applyDks(true);$('dks-disable').onclick=()=>applyDks(false);
 $('pair-first').onchange=showPairState;$('pair-second').onchange=showPairState;
+function clearPairSelection(){$('pair-first').value='';$('pair-second').value='';if(typeof syncProgrammingSlots==='function')syncProgrammingSlots();showPairState();}
+function clearDksSelection(){$('dks-source').value='';$('dks-target').value='';if(typeof syncProgrammingSlots==='function')syncProgrammingSlots();}
 async function applyPair(disable=false){
   if(busy||!programming)return;
   setBusy(true);$('pair-status').textContent='Applying pair and verifying device readback...';
   try{
     const reply=await window.keyboard.setPair({layer,first:$('pair-first').value,second:$('pair-second').value,mode:disable?0:Number($('pair-mode').value)});
     if(!reply.ok)throw new Error(reply.error);
-    programming=reply.result;showPairState();showDksState();updateProgrammingIndicators();$('pair-status').textContent=disable?'Pair disabled and verified.':'Pair applied and verified.';
+    programming=reply.result;showPairState();showDksState();updateProgrammingIndicators();clearPairSelection();$('pair-status').textContent=disable?'Pair disabled and verified.':'Pair applied and verified.';
   }catch(error){$('pair-status').textContent=error.message;}
   finally{setBusy(false);}
 }
@@ -924,7 +1092,7 @@ settingsPanel.insertAdjacentHTML('beforeend',`
   </section>
   <section class="device-option" data-setting="autoCalibration">
    <label class="device-option-heading" for="device-auto-calibration"><h3>Auto calibration</h3><input id="device-auto-calibration" type="checkbox" disabled></label>
-   <p>Enable the keyboard's automatic calibration aid. Initial manual calibration is still required.</p>
+   <p>Enable the keyboard's automatic calibration aid. Initial manual calibration is still required. Applying reloads the page to reconnect.</p>
    <button id="device-auto-calibration-apply" disabled>Apply Auto calibration</button>
   </section>
   <section class="device-option" data-setting="autoLightOff">
@@ -934,14 +1102,14 @@ settingsPanel.insertAdjacentHTML('beforeend',`
    <button id="device-auto-light-off-apply" disabled>Apply Auto light off</button>
   </section>
   <section class="device-option" data-setting="saturation">
-   <h3>Saturation</h3><p>Adjust the keyboard's R, G and B levels (64–255).</p>
+   <h3>Saturation</h3><p>Adjust the keyboard's R, G and B levels (64-255).</p>
    ${['R','G','B'].map((channel,i)=>`<label class="device-setting-range" for="device-saturation-${i}">${channel} <input id="device-saturation-${i}" type="range" min="64" max="255" step="1" disabled><output id="device-saturation-value-${i}" for="device-saturation-${i}"></output></label>`).join('')}
    <button id="device-saturation-apply" disabled>Apply Saturation</button>
   </section>
  </div>`);
 const settingActions={
  highlight:{capability:'canEditHighlight',label:'Highlight',apply:()=>window.keyboard.setHighlight($('device-highlight').checked)},
- autoCalibration:{capability:'canEditAutoCalibration',label:'Auto calibration',apply:()=>window.keyboard.setAutoCalibration($('device-auto-calibration').checked)},
+ autoCalibration:{capability:'canEditAutoCalibration',label:'Auto calibration',apply:()=>window.keyboard.setAutoCalibration($('device-auto-calibration').checked,{verify:false})},
  autoLightOff:{capability:'canEditAutoLightOff',label:'Auto light off',apply:()=>window.keyboard.setAutoLightOff({enabled:$('device-auto-light-off').checked,...($('device-auto-light-off').checked?{minutes:Number($('device-auto-light-off-minutes').value)}:{})})},
  saturation:{capability:'canEditSaturation',label:'Saturation',apply:()=>window.keyboard.setSaturation([0,1,2].map(i=>Number($('device-saturation-'+i).value)))}
 };
@@ -963,7 +1131,7 @@ function showDeviceSettings(){
  $('device-auto-light-off-value').value=$('device-auto-light-off-minutes').value+' min';
  for(const i of [0,1,2]){
   $('device-saturation-'+i).value=deviceSettings?.saturation?.[i]??64;
-  $('device-saturation-value-'+i).value=deviceSettings?.saturation?.[i]??'—';
+  $('device-saturation-value-'+i).value=deviceSettings?.saturation?.[i]??'â€”';
  }
  updateSettingControls();
 }
@@ -973,7 +1141,7 @@ for(const [id,name] of [['highlight','highlight'],['auto-calibration','autoCalib
 settingsPanel.querySelectorAll('.device-option input').forEach(input=>input.addEventListener('input',()=>{
  $('device-auto-light-off-value').value=$('device-auto-light-off-minutes').value+' min';
  for(const i of [0,1,2])$('device-saturation-value-'+i).value=$('device-saturation-'+i).value;
- updateSettingControls();$('device-settings-status').textContent='Saving to device memory automatically.';
+ updateSettingControls();$('device-settings-status').textContent='Applying to the keyboard...';
 }));
 function showPerformanceMode(){
  performanceDraft=deviceSettings?.canEditPerformance?deviceSettings.performanceMode:null;
@@ -989,15 +1157,16 @@ for(const button of settingsPanel.querySelectorAll('[data-performance-mode]'))bu
 async function deviceSettingsAction(apply=false){
  const action=settingActions[apply];
  if(busy||(action?!deviceSettings?.[action.capability]:apply==='mode'?!deviceSettings?.canEditPerformance:apply&&!deviceSettings?.canEditFps))return;
- const enabled=$('device-fps').checked,mode=performanceDraft;expectedDeviceRestart=apply==='mode';setBusy(true);$('device-settings-status').textContent=apply?'Applying device settings...':'Reading device settings...';
+ const enabled=$('device-fps').checked,mode=performanceDraft,autoCalibration=apply==='autoCalibration';expectedDeviceRestart=apply==='mode'||autoCalibration;setBusy(true);$('device-settings-status').textContent=apply?'Applying device settings...':'Reading device settings...';
+ if(autoCalibration)setTimeout(()=>window.location.reload(),2000);
  let reloadAfterRestart=false;
  try{
    const reply=await (action?action.apply():apply==='mode'?window.keyboard.setPerformanceMode(mode):apply?window.keyboard.setFpsEnhance(enabled):window.keyboard.readDeviceSettings());
-    if(!reply.ok)throw Error(reply.error);deviceSettings=apply?{...deviceSettings,...reply.result}:reply.result;showDeviceSettings();reloadAfterRestart=apply==='mode'&&!!reply.result.reconnectPending;
-    $('device-settings-status').textContent=apply?(reloadAfterRestart?'Performance mode applied. Reloading after keyboard restart...':(action?.label||'FPS Enhance')+' applied. Device readback and preservation of other sections verified.'):'Device settings read from keyboard.';
- }catch(error){deviceSettings=null;showDeviceSettings();$('device-settings-status').textContent=error.message;}
+    if(!reply.ok)throw Error(reply.error);deviceSettings=apply?{...deviceSettings,...reply.result}:reply.result;showDeviceSettings();reloadAfterRestart=(apply==='mode'&&!!reply.result.reconnectPending)||autoCalibration;
+    $('device-settings-status').textContent=apply?(autoCalibration?'Auto calibration applied. Reloading the page to reconnect...':reloadAfterRestart?'Performance mode applied. Reloading after keyboard restart...':(action?.label||'FPS Enhance')+' applied and verified on the keyboard. No device-memory save command was sent.'):'Device settings read from keyboard.';
+ }catch(error){deviceSettings=null;showDeviceSettings();$('device-settings-status').textContent=error.message;if(autoCalibration){reloadAfterRestart=true;$('device-settings-status').textContent='Auto calibration apply did not complete. Reloading the page to reconnect...';}}
  finally{setBusy(false);}
- if(reloadAfterRestart){setTimeout(()=>window.location.reload(),900);return;}
+ if(reloadAfterRestart){setTimeout(()=>window.location.reload(),autoCalibration?1200:900);return;}
  expectedDeviceRestart=false;
 }
 $('device-mode-apply').onclick=()=>deviceSettingsAction('mode');
@@ -1083,7 +1252,8 @@ $('hotkey-interval').addEventListener('change',autoApply(()=>$('hotkey-apply').c
 $('dks-target').addEventListener('change',autoApply(()=>$('dks-apply').click(),80));
 $('dks-interval').addEventListener('change',autoApply(()=>$('dks-apply').click(),250));
 for(const id of ['modify-type','modify-button','modify-x','modify-y','modify-wheel','modify-mode','modify-interval'])$(id).addEventListener('change',autoApply(()=>$('modify-apply').click(),250));
-$('modify-hotkey').addEventListener('change',autoApply(()=>$('modify-apply').click(),80));
+const applyModifySoon=autoApply(()=>$('modify-apply').click(),80);
+$('modify-hotkey').addEventListener('change',()=>{const interval=$('modify-interval');if($('modify-hotkey').checked&&Number(interval.valueAsNumber)<1){interval.value='23';$('modify-interval-value').textContent='23';}$('modify-status').textContent=$('modify-hotkey').checked?'Applying HotKey...':'Removing HotKey...';applyModifySoon();});
 $('key-enabled').addEventListener('change',autoApply(()=>$('key-enabled-apply').click(),80));
 $('pair-mode').addEventListener('change',autoApply(()=>$('pair-apply').click(),80));
 for(const button of document.querySelectorAll('[data-pair-mode]'))button.addEventListener('click',autoApply(()=>$('pair-apply').click(),80));
@@ -1095,3 +1265,5 @@ $('device-auto-light-off-minutes').addEventListener('change',autoApply(()=>devic
 for(const i of [0,1,2])$('device-saturation-'+i).addEventListener('change',autoApply(()=>deviceSettingsAction('saturation'),250));
 
 
+
+window.addEventListener('pagehide',()=>{window.keyboard?.disconnect?.();});

@@ -19,7 +19,7 @@ function cacheCrc(bytes){
   return crc>>>0;
 }
 
-async function saveDeviceMemory(device,sections,{timeoutMs=5000,requireCrc=false,trace=()=>{},stream:providedStream=null}={}){
+async function saveDeviceMemory(device,sections,{timeoutMs=5000,requireCrc=false,tolerant=false,trace=()=>{},stream:providedStream=null}={}){
   const tags=new Map();
   for(const [command,{kind,length}] of CRC_SECTIONS){
     const raw=sections.get(kind);
@@ -36,7 +36,7 @@ async function saveDeviceMemory(device,sections,{timeoutMs=5000,requireCrc=false
     await send(start);
     const deadline=Date.now()+timeoutMs,answered=new Set();
     let frames=0;
-    while(Date.now()<deadline&&frames<4096){
+    while(Date.now()<deadline&&frames<20000){
       const payload=await stream.next(Math.max(1,Math.min(100,deadline-Date.now())));
       if(!payload)continue;
       frames++;
@@ -49,7 +49,8 @@ async function saveDeviceMemory(device,sections,{timeoutMs=5000,requireCrc=false
         return {acknowledged:true,command:'DRIVER_ED',completion:'SAVE_END',crcCommands:[...answered],persistenceVerified:false};
       }
     }
-    throw Error('Keyboard did not confirm SAVE_END; settings may be lost after disconnecting USB');
+    if(tolerant&&!requireCrc)return {acknowledged:true,command:'DRIVER_ED',completion:'SENT',confirmed:false,crcCommands:[...answered],persistenceVerified:false,frames,warning:'Save command sent; SAVE_END was not confirmed.'};
+    throw Error(`Keyboard did not confirm SAVE_END; settings may be lost after disconnecting USB (frames ${frames}, CRC ${[...answered].map(command=>'0x'+command.toString(16)).join(',')||'none'})`);
   }finally{
     if(ownsStream)stream.close();
   }

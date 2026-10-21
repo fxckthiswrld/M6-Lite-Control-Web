@@ -53,13 +53,21 @@ function showProgrammingGroup(name){
  for(const [key,button] of Object.entries(programmingGroupButtons))button.setAttribute('aria-pressed',String(key===name));
 }
 const presetCard=document.createElement('details');presetCard.className='programming-card';presetCard.open=true;const presetSummary=document.createElement('summary');presetSummary.textContent='Quick presets';presetCard.append(presetSummary,presetPanel);programmingOverview.append(presetCard);
+let enableCard=null;
 for(const [name,nodes] of Object.entries(programmingGroups)){
  if(name==='Off / Enable key'){
-  const offCard=document.createElement('section');offCard.className='programming-off-card';offCard.dataset.programmingGroup=name;
-  const offHeading=document.createElement('h3');offHeading.textContent='Off / Enable key';offCard.append(offHeading);
-  for(const node of nodes){if(node.tagName==='H2'){node.remove();continue;}node.hidden=false;offCard.append(node);}
-  offCard.insertAdjacentHTML('beforeend','<button id="programming-reset-all" class="secondary">Reset all keys to Standard</button><p id="programming-reset-all-status" role="status"></p>');
-  offCard.querySelector('#programming-reset-all').onclick=async()=>{
+  const resetCard=document.createElement('section');resetCard.className='programming-off-card programming-reset-card';resetCard.dataset.programmingGroup=name;
+  const resetHeading=document.createElement('h3');resetHeading.textContent='Reset keys';resetCard.append(resetHeading);
+  enableCard=document.createElement('details');enableCard.className='programming-card';enableCard.open=false;const enableSummary=document.createElement('summary');enableSummary.textContent='Enable key';enableCard.append(enableSummary);
+  for(const node of nodes){
+   if(node.tagName==='H2'){node.remove();continue;}
+   node.hidden=false;
+   if(node.id==='programming-reset'||node.querySelector?.('#programming-reset'))resetCard.append(node);
+   else if(node.tagName==='P'&&/Off disables the source switch/.test(node.textContent)){node.textContent='Enable or disable the source switch. The saved assignment is retained while disabled.';enableCard.append(node);}
+   else enableCard.append(node);
+  }
+  resetCard.insertAdjacentHTML('beforeend','<button id="programming-reset-all" class="secondary">Reset all keys to Standard</button><p id="programming-reset-all-status" role="status"></p>');
+  resetCard.querySelector('#programming-reset-all').onclick=async()=>{
    if(busy||!programming)return;
    if(!window.confirm('Reset all programming assignments for this profile to Standard?\n\nA backup will be kept, but automatic undo is unavailable.'))return;
    setBusy(true);$('programming-reset-all-status').textContent='Resetting all keys...';
@@ -72,12 +80,13 @@ for(const [name,nodes] of Object.entries(programmingGroups)){
    }catch(error){$('programming-reset-all-status').textContent=error.message;}
    finally{setBusy(false);}
   };
-  programmingOverview.append(offCard);
+  programmingSide.append(resetCard);
   continue;
  }
  const card=document.createElement('details');card.className='programming-card';card.dataset.programmingGroup=name;const summary=document.createElement('summary');summary.textContent=name==='Layer assignment'?'FN / Layer assignment':name==='Snap Tap / SOCD'?'Snap Tap / SOCD':name;card.append(summary);for(const node of nodes){if(node.tagName==='H2')node.hidden=true;node.hidden=false;card.append(node);}programmingCards[name]=card;
 }
 for(const name of ['Remap','Layer assignment','Media'])programmingGroupPanels.Remap.append(programmingCards[name]);
+if(enableCard)programmingGroupPanels.Remap.append(enableCard);
 const dksCard=programmingCards['DKS'];if(dksCard){dksCard.open=true;programmingGroupPanels.DKS.append(dksCard);}
 const snapCard=programmingCards['Snap Tap / SOCD'];if(snapCard){snapCard.open=true;programmingGroupPanels.Snap.append(snapCard);}
 const hotkeyCard=programmingCards.HotKey;if(hotkeyCard){hotkeyCard.hidden=true;programmingGroupPanels.Remap.append(hotkeyCard);}
@@ -108,7 +117,7 @@ function renderProgrammingSlots(){
   $('pair-mode').closest('label').style.setProperty('display','none');
   $('pair-second').closest('label').style.setProperty('display','none');
   for(const slot of snapCard.querySelectorAll('[data-pair-slot]'))slot.onclick=()=>setProgrammingSlot('pair-'+slot.dataset.pairSlot);
-  for(const button of snapCard.querySelectorAll('[data-pair-mode]'))button.onclick=()=>{$('pair-mode').value=button.dataset.pairMode;syncProgrammingSlots();};
+  for(const button of snapCard.querySelectorAll('[data-pair-mode]'))button.onclick=()=>{$('pair-mode').value=button.dataset.pairMode;syncProgrammingSlots();if($('pair-first').value&&$('pair-second').value)setTimeout(()=>$('pair-apply').click(),50);};
  }
  for(const id of ['dks-source','dks-target','pair-first','pair-second','pair-mode'])$(id)?.addEventListener('change',syncProgrammingSlots);
  for(const id of ['dks-apply','dks-disable','pair-apply','pair-disable'])$(id)?.addEventListener('click',()=>setTimeout(syncProgrammingSlots,50));
@@ -271,6 +280,8 @@ function clearKeyboardSelection(){
 let uiPage='home';
 function navigateUI(page){
  if(busy)return false;
+ const leavingCalibration=uiPage==='calibration'&&page!=='calibration';
+ if(typeof resetLightingPreview==='function')resetLightingPreview();
  clearKeyboardSelection();setProgrammingSlot(null);
  discardLightingDraft();showDeviceSettings();showSelected();
  fillRemap();fillLayer();fillMedia();fillModify();fillHotKey();showPairState();showDksState();
@@ -289,10 +300,10 @@ function navigateUI(page){
  if(page==='lighting'){lightingPanel.hidden=false;lightingBrightness();syncSingleKeyHighlights();}
  if(page==='settings'){settingsPanel.hidden=false;deviceSettingsAction();}
  if(page==='calibration'){calibrationPanel.hidden=false;restoreCalibrationState().then(()=>{refreshCalibration(calibrationActive).catch(error=>{if(!calibrationActive)$('calibration-status').textContent=error.message;});});}
- window.dispatchEvent(new CustomEvent('m6-page',{detail:page}));window.scrollTo(0,0);return true;
+ window.dispatchEvent(new CustomEvent('m6-page',{detail:page}));if(leavingCalibration&&typeof cancelCalibrationOnExit==='function')cancelCalibrationOnExit();if(typeof updateLightingPreview==='function')updateLightingPreview();window.scrollTo(0,0);return true;
 }
 function syncSingleKeyHighlights(){const select=$('single-keys');if(!select)return;const ids=new Set([...select.selectedOptions].map(option=>option.value));for(const key of $('keyboard').querySelectorAll('.key'))key.classList.toggle('key-selected',uiPage==='lighting'&&ids.has(key.dataset.id));}
-function lightingTab(tab){if(tab!==currentLightingTab)clearKeyboardSelection();currentLightingTab=tab;if(uiPage==='lighting'&&!busy)discardLightingDraft();for(const [name,nodes] of Object.entries(lightingGroups)){lightingWrappers[name].hidden=name!==tab;for(const node of nodes)node.hidden=false;}const active=lightingGroups[tab]?.[0];if(active){active.classList.remove('tab-enter');void active.offsetWidth;active.classList.add('tab-enter');}syncSingleKeyHighlights();}
+function lightingTab(tab){if(tab!==currentLightingTab)clearKeyboardSelection();currentLightingTab=tab;if(uiPage==='lighting'&&!busy)discardLightingDraft();for(const [name,nodes] of Object.entries(lightingGroups)){lightingWrappers[name].hidden=name!==tab;for(const node of nodes)node.hidden=false;}const active=lightingGroups[tab]?.[0];if(active){active.classList.remove('tab-enter');void active.offsetWidth;active.classList.add('tab-enter');}syncSingleKeyHighlights();if(typeof updateLightingPreview==='function')updateLightingPreview();}
 $('single-keys').addEventListener('change',syncSingleKeyHighlights);
 for(const panel of [remapPanel,advancedPanel])panel.querySelector('[data-action="programming-back"]').onclick=()=>navigateUI('home');
 // Keyboard selection also targets Programming and Single Light controls.
@@ -302,7 +313,7 @@ $('keyboard').addEventListener('click',event=>{
   if(programmingSlot){
    const slot=programmingSlot,select=$(slot);select.value=key.dataset.id;select.dispatchEvent(new Event('change'));
    setProgrammingSlot(null);syncProgrammingSlots();
-   if(slot.startsWith('pair-'))setTimeout(()=>$('pair-apply').click(),50);
+   if(slot.startsWith('pair-')&&$('pair-first').value&&$('pair-second').value)setTimeout(()=>$('pair-apply').click(),50);
    return;
   }
   syncProgrammingSelection();
@@ -317,6 +328,7 @@ $('keyboard').addEventListener('click',event=>{
 document.addEventListener('pointerdown',event=>{
  if(busy||event.button!==0)return;
  if(event.target.closest('button,.key,input,select,textarea,label,a,[role=button],[role=tab]'))return;
+ if(event.target.closest('#keyboard,.keyboard'))return;
  clearKeyboardSelection();
 });
 window.m6UI={navigate:navigateUI,lightingTab,programmingTab,refresh:async()=>{if(busy)return;await loadProfile(layer);const page=document.body.dataset.page;if(page==='lighting')lightingBrightness().catch(()=>{});else if(page==='settings')deviceSettingsAction();else if(page==='calibration')refreshCalibration(true).catch(()=>{});},snapshot:()=>({busy,connected:!!profile,layer,selectedLabel:profile?.layout.find(k=>k.id===selectedId)?.label||'Select a key',page:uiPage,back:lightingState,under:underLightState,single:singleState,brightness:lightingSavedBrightness})};
@@ -337,16 +349,17 @@ function syncProgrammingSelection(){
 }
 $('select-multiple').hidden=true;
 selectionBar.querySelector('p').textContent='Click keys to add or remove them from the selection. Drag across keys to select a group. Changes write automatically to the selected switches.';
-for(const id of ['remap-source','remap-target','modify-source','modify-target','media-source','layer-source','dks-source','hotkey-source','pair-first']){const label=$(id)?.closest('label');if(label){label.hidden=true;const controls=label.parentElement;if(controls&&![...controls.children].some(node=>!node.hidden))controls.hidden=true;}}
+for(const id of ['remap-source','remap-target','modify-source','modify-target','media-source','layer-source','dks-source','dks-target','hotkey-source','pair-first']){const label=$(id)?.closest('label');if(label){label.hidden=true;const controls=label.parentElement;if(controls&&![...controls.children].some(node=>!node.hidden))controls.hidden=true;}}
 $('key-enabled').closest('label')?.classList.add('toggle-row');
 // Drag paints the physical keys; single clicks retain the normal toggle behavior.
 let drag=null,suppressClick=false;
-$('keyboard').addEventListener('pointerdown',e=>{const key=e.target.closest('.key');if(!['range','lighting'].includes(uiPage)||busy||e.button!==0||!key)return;drag={id:key.dataset.id,x:e.clientX,y:e.clientY,ids:new Set([key.dataset.id]),active:false};});
+$('keyboard').addEventListener('pointerdown',e=>{const key=e.target.closest('.key');if(!['range','lighting'].includes(uiPage)||busy||e.button!==0||!key)return;const ids=new Set(selectedIds);ids.add(key.dataset.id);drag={id:key.dataset.id,x:e.clientX,y:e.clientY,ids,active:false};});
 window.addEventListener('pointermove',e=>{
  if(!drag||busy)return;
- if(Math.hypot(e.clientX-drag.x,e.clientY-drag.y)>5)drag.active=true;
- if(!drag.active)return;
- const key=document.elementFromPoint(e.clientX,e.clientY)?.closest('#keyboard .key');if(!key)return;
+ const key=document.elementFromPoint(e.clientX,e.clientY)?.closest('#keyboard .key');
+ const distance=Math.hypot(e.clientX-drag.x,e.clientY-drag.y);
+ if(!drag.active&&distance>14&&(distance>24||(key&&key.dataset.id!==drag.id)))drag.active=true;
+ if(!drag.active||!key)return;
  if(uiPage==='lighting'){
   const select=$('single-keys'),option=[...select.options].find(o=>o.value===key.dataset.id);
   if(option&&!option.selected){option.selected=true;select.dispatchEvent(new Event('change'));}

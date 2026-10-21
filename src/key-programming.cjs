@@ -66,6 +66,9 @@ function encodePair(key,layer,allSteps,mode,target,command=1) {
   byte(target.col,'partner column',13);
   const b=header(key,layer,allSteps,mode);b[2]=command;b[10]=target.row;b[11]=target.col;return b;
 }
+function encodeAdCancel(key,layer,allSteps) {
+  const b=header(key,layer,allSteps,6);b[2]=12;return b;
+}
 function encodeModRestore(key,layer,allSteps) {
   if(key.mode!==0||!Buffer.isBuffer(key.record)||key.record.length!==RECORD_SIZE)
     throw new Error('Standard-mode record required');
@@ -169,4 +172,4 @@ function encodeDksRestore(key,layer,allSteps){
   // Firmware retains inactive keyboard/mouse fields: restore both representations.
   return [encodeDks(key,layer,allSteps,inactive),encodeDks(key,layer,allSteps,original)];
 }
-module.exports={parseProgrammingProfile,parseMacroKey,encodePair,encodeModRestore,encodeFullModRestore,encodeStandardRemap,encodeModify,encodeLayer,encodeLayerRestore,encodeMt10,encodeProgrammingReset,encodeHotKey,encodeMedia,encodeDks,encodeDksRestore,encodeKeyEnabled,countMacroSteps,PROFILE_SIZE,DKS_MOUSE_ACTIONS,buildDksRecord,parseDks};
+module.exports={parseProgrammingProfile,parseMacroKey,encodePair,encodeModRestore,encodeFullModRestore,encodeStandardRemap,encodeModify,encodeLayer,encodeLayerRestore,encodeMt10,encodeAdCancel,encodeProgrammingReset,encodeHotKey,encodeMedia,encodeDks,encodeDksRestore,encodeKeyEnabled,countMacroSteps,PROFILE_SIZE,DKS_MOUSE_ACTIONS,buildDksRecord,parseDks};
