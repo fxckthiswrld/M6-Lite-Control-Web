@@ -77,9 +77,10 @@ for(const [name,nodes] of Object.entries(programmingGroups)){
  }
  const card=document.createElement('details');card.className='programming-card';card.dataset.programmingGroup=name;const summary=document.createElement('summary');summary.textContent=name==='Layer assignment'?'FN / Layer assignment':name==='Snap Tap / SOCD'?'Snap Tap / SOCD':name;card.append(summary);for(const node of nodes){if(node.tagName==='H2')node.hidden=true;node.hidden=false;card.append(node);}programmingCards[name]=card;
 }
-for(const name of ['Remap','Layer assignment','Media','HotKey'])programmingGroupPanels.Remap.append(programmingCards[name]);
+for(const name of ['Remap','Layer assignment','Media'])programmingGroupPanels.Remap.append(programmingCards[name]);
 const dksCard=programmingCards['DKS'];if(dksCard){dksCard.open=true;programmingGroupPanels.DKS.append(dksCard);}
 const snapCard=programmingCards['Snap Tap / SOCD'];if(snapCard){snapCard.open=true;programmingGroupPanels.Snap.append(snapCard);}
+const hotkeyCard=programmingCards.HotKey;if(hotkeyCard){hotkeyCard.hidden=true;programmingGroupPanels.Remap.append(hotkeyCard);}
 showProgrammingGroup('Remap');
 function programmingKeyLabel(id){return profile?.layout.find(key=>key.id===id)?.label||id;}
 function syncProgrammingSlots(){
@@ -114,6 +115,24 @@ function renderProgrammingSlots(){
  syncProgrammingSlots();
 }
 renderProgrammingSlots();
+const mediaSelect=$('media-action');
+if(mediaSelect){
+ const mediaLabel=mediaSelect.closest('label');if(mediaLabel)mediaLabel.hidden=true;mediaSelect.hidden=true;
+ const picker=document.createElement('div');picker.id='media-icon-picker';mediaLabel.after(picker);
+ const render=()=>{picker.replaceChildren();for(const action of window.keyboard.mediaActions||[]){const button=document.createElement('button');button.type='button';button.className='media-icon-button';button.dataset.mediaAction=action.id;button.title=action.label;button.setAttribute('aria-label',action.label);button.innerHTML=`<span>${window.M6_MEDIA_ICONS?.[action.id]||'•'}</span><small>${action.label}</small>`;button.onclick=()=>{mediaSelect.value=action.id;mediaSelect.dispatchEvent(new Event('change',{bubbles:true}));};picker.append(button);}sync();};
+ const sync=()=>{for(const button of picker.querySelectorAll('.media-icon-button'))button.classList.toggle('selected',button.dataset.mediaAction===mediaSelect.value);};
+ mediaSelect.addEventListener('change',sync);new MutationObserver(render).observe(mediaSelect,{childList:true});render();
+}
+const keyLibrary=document.createElement('section');keyLibrary.id='key-library';keyLibrary.innerHTML='<div class="key-library-head"><input id="key-search" type="search" placeholder="Search for a character" aria-label="Search for a character"></div><div id="key-library-categories"></div>';
+const remapLibraryLayout=document.createElement('div');remapLibraryLayout.id='remap-library-layout';
+const remapLibrarySide=document.createElement('aside');remapLibrarySide.className='remap-library-side';remapLibrarySide.innerHTML='<h3>Remap keys</h3><p>Changes made here affect this profile. Select a physical key above, then pick its target on the right.</p><div class="remap-pair-preview"><div class="remap-pair-key"><small>ORIGINAL</small><b id="remap-original-key">—</b></div><span class="remap-pair-arrow">→</span><div class="remap-pair-key"><small>REPLACEMENT</small><b id="key-library-selected">—</b></div></div><p id="key-library-status" role="status"></p>';
+remapLibraryLayout.append(remapLibrarySide,keyLibrary);$('remap-current').before(remapLibraryLayout);
+function keyCategory(label){return label.length===1&&/[A-Z0-9`~!@#$%^&*()_+\-=\[\]{}\\|;:'",.<>/?]/i.test(label)?'Basic Characters':'Extended Characters';}
+function syncKeyLibrary(){const value=$('remap-target')?.value,sourceId=$('remap-source')?.value||selectedId,source=profile?.layout.find(key=>key.id===sourceId),sourceKey=programming?.keys.find(key=>`${key.row}:${key.col}`===sourceId),mouse=sourceKey?.modify?.type===1?mouseActionFor(sourceKey.modify):null,option=$('remap-target')?.selectedOptions?.[0],original=$('remap-original-key'),preview=$('key-library-selected');for(const button of keyLibrary.querySelectorAll('.key-library-button')){if(button.dataset.mouseAction)button.classList.toggle('selected',button.dataset.mouseAction===mouse);else button.classList.toggle('selected',button.dataset.target===value);}if(original)original.textContent=source?.label||'—';if(preview)preview.textContent=mouse?(window.M6_MOUSE_ACTIONS?.[mouse]?.label||'Mouse'):(option&&value?option.textContent:'—');}
+async function applyMouseTarget(id){if(busy||!programming)return;const action=window.M6_MOUSE_ACTIONS?.[id];if(!action)return;const source=$('modify-source')?.value||selectedId;setBusy(true);$('key-library-status').textContent='Applying...';try{const reply=await window.keyboard.setModify({layer,id:source,modify:{type:1,row:0,col:0,button:action.button,x:action.x,y:action.y,wheel:action.wheel,mode:0,interval:0}});if(!reply.ok)throw new Error(reply.error);programming=reply.result;fillModify();updateProgrammingIndicators();$('key-library-status').textContent=action.label+' applied.';syncKeyLibrary();}catch(error){$('key-library-status').textContent=error.message;}finally{setBusy(false);}}
+function renderKeyLibrary(){const host=$('key-library-categories'),groups=new Map();for(const [r,row] of (window.M6_FULL_SIZE_KEYBOARD||[]).entries())for(const [c,label] of row.entries())if(label){const category=keyCategory(label);if(!groups.has(category))groups.set(category,[]);groups.get(category).push({r,c,label});}host.replaceChildren();for(const name of ['Basic Characters','Extended Characters']){const items=groups.get(name);if(!items)continue;const section=document.createElement('details');section.className='key-library-category';section.open=true;const summary=document.createElement('summary');summary.textContent=(name==='Basic Characters'?'A  ':'#  ')+name;const grid=document.createElement('div');grid.className='key-library-grid';for(const item of items){const button=document.createElement('button');button.type='button';button.className='key-library-button';button.dataset.target=`key:${item.r}:${item.c}`;button.dataset.label=item.label;button.textContent=item.label;button.title=`${item.label} (${item.r+1}:${item.c+1})`;button.onclick=()=>{for(const id of ['remap-target','modify-target']){const select=$(id);if(select){select.value=button.dataset.target;}}syncKeyLibrary();if(!busy&&$('remap-apply')&&!$('remap-apply').disabled)$('remap-apply').click();};grid.append(button);}section.append(summary,grid);host.append(section);}const mouse=document.createElement('details');mouse.className='key-library-category';mouse.open=true;const summary=document.createElement('summary');summary.textContent='🖱  Mouse';const grid=document.createElement('div');grid.className='key-library-grid mouse-key-library';for(const id of ['left-button','right-button','middle-button']){const action=window.M6_MOUSE_ACTIONS?.[id];if(!action)continue;const button=document.createElement('button');button.type='button';button.className='key-library-button mouse-key-button';button.dataset.mouseAction=id;button.title=action.label;button.setAttribute('aria-label',action.label);button.innerHTML=window.M6_MOUSE_SVG?.[id]||'';button.onclick=()=>applyMouseTarget(id);grid.append(button);}mouse.append(summary,grid);host.append(mouse);syncKeyLibrary();}
+$('key-search').addEventListener('input',()=>{const query=$('key-search').value.trim().toLowerCase();for(const section of keyLibrary.querySelectorAll('.key-library-category')){let visible=0;for(const button of section.querySelectorAll('.key-library-button')){const show=!query||(button.dataset.label||button.title||'').toLowerCase().includes(query);button.hidden=!show;if(show)visible++;}section.hidden=visible===0;}});
+$('remap-target').addEventListener('change',syncKeyLibrary);renderKeyLibrary();
 function programmingIconLabel(text){const value=String(text||'').trim();if(value.length<=3)return value;const abbreviations={'Backspace':'BACK','Print Screen':'PRT SC','Scroll Lock':'SLK','Pause':'PAUSE','Insert':'INS','Delete':'DEL','Home':'HOME','End':'END','Page Up':'PG UP','Page Down':'PG DN','Num Lock':'NUM','Num /':'NUM /','Num *':'NUM *','Num -':'NUM -','Num +':'NUM +','Num 7':'NUM 7','Num 8':'NUM 8','Num 9':'NUM 9','Num 4':'NUM 4','Num 5':'NUM 5','Num 6':'NUM 6','Num 1':'NUM 1','Num 2':'NUM 2','Num 3':'NUM 3','Num 0':'NUM 0','Num .':'NUM .','Num Enter':'NUM ENT','Caps Lock':'CAPS','Left Shift':'L-SH','Right Shift':'R-SH','Left Ctrl':'L-CTRL','Right Ctrl':'R-CTRL','Left Alt':'L-ALT','Right Alt':'R-ALT','Left Win':'L-WIN','Right Win':'R-WIN','Left Arrow':'←','Down Arrow':'↓','Up Arrow':'↑','Right Arrow':'→'};if(abbreviations[value])return abbreviations[value];const icons=[['media','♫'],['mouse','🖱'],['wheel','↕'],['snap','⇄'],['socd','⇄'],['dks','⌘'],['fn','Fn'],['layer','▱'],['reset','↺'],['disable','⏻'],['standard','⌨'],['keyboard','⌨'],['hotkey','⟳']];const match=icons.find(([word])=>value.toLowerCase().includes(word));return match?.[1]||value.slice(0,6).toUpperCase();}
 const fullSizeKeyboardKeys=['Esc','F1','F2','F3','F4','F5','F6','F7','F8','F9','F10','F11','F12','Print Screen','Scroll Lock','Pause','1','2','3','4','5','6','7','8','9','0','-','=', 'Backspace','Insert','Home','Page Up','Num Lock','Num /','Num *','Num -','Tab','Q','W','E','R','T','Y','U','I','O','P','[',']','\\','Delete','End','Page Down','Num 7','Num 8','Num 9','Num +','Caps Lock','A','S','D','F','G','H','J','K','L',';','\'','Enter','Num 4','Num 5','Num 6','Left Shift','Z','X','C','V','B','N','M',',','.','/','Right Shift','Num 1','Num 2','Num 3','Num Enter','Left Ctrl','Left Win','Left Alt','Space','Right Alt','Right Win','Menu','Right Ctrl','Left Arrow','Down Arrow','Up Arrow','Right Arrow','Num 0','Num .'];
 function renderProgrammingIconPicker(select){
@@ -124,24 +143,9 @@ function renderProgrammingIconPicker(select){
  const refresh=()=>{picker.replaceChildren();if(select.id==='remap-target'){const physical=[...select.options];for(const [title,options] of [['Basic Characters',physical.filter(option=>isBasic(option.textContent))],['Extended Characters',physical.filter(option=>!isBasic(option.textContent))]]){const section=document.createElement('section');section.className='programming-icon-section';const heading=document.createElement('h4');heading.textContent=title;section.append(heading);const grid=document.createElement('div');grid.className='programming-icon-grid';options.forEach(option=>addButton(option,grid));section.append(grid);picker.append(section);}}else{const grid=document.createElement('div');grid.className='programming-icon-grid';[...select.options].forEach(option=>addButton(option,grid));picker.append(grid);}};
  select.dataset.iconPicker='true';select.classList.add('programming-icon-select');select.after(picker);select.addEventListener('change',refresh);new MutationObserver(refresh).observe(select,{childList:true});refresh();
 }
-const programmingSourceIds=new Set(['remap-source','modify-source','media-source','layer-source','dks-source','dks-target','hotkey-source','pair-first','pair-second','modify-target']);
-for(const select of programmingLayout.querySelectorAll('select'))if(!programmingSourceIds.has(select.id))renderProgrammingIconPicker(select);
+const programmingSourceIds=new Set(['remap-source','remap-target','modify-source','modify-target','modify-type','media-source','media-action','layer-source','dks-source','dks-target','hotkey-source','pair-first','pair-second']);
+for(const select of programmingLayout.querySelectorAll('select'))if(select.id!=='media-action'&&!programmingSourceIds.has(select.id))renderProgrammingIconPicker(select);
 const settingsFooter=document.createElement('div');settingsFooter.id='settings-footer';settingsPanel.append(settingsFooter);
-const deviceData=document.createElement('section');deviceData.id='device-data';deviceData.className='device-data';
-const deviceDataHeading=document.createElement('h3');deviceDataHeading.textContent='Device data';
-const deviceDataText=document.createElement('p');deviceDataText.textContent='Reads and saves happen automatically when you open a page or change a setting.';
-const deviceDataActions=document.createElement('div');deviceDataActions.className='actions device-data-actions';
-const deviceDataStatus=document.createElement('p');deviceDataStatus.id='device-data-status';deviceDataStatus.setAttribute('role','status');deviceDataStatus.setAttribute('aria-live','polite');
-for(const id of ['read','save-memory']){const button=document.getElementById(id);if(button)deviceDataActions.append(button);}
-deviceData.append(deviceDataHeading,deviceDataText,deviceDataActions,deviceDataStatus);
-settingsPanel.insertBefore(deviceData,settingsPanel.children[1]||null);
-const performanceCard=settingsPanel.querySelector('.performance-card');
-if(performanceCard){
- const modeBlock=[performanceCard];
- let sibling=performanceCard.nextElementSibling;
- while(sibling&&sibling.tagName==='P'&&sibling.id!=='device-settings-status'){modeBlock.push(sibling);sibling=sibling.nextElementSibling;}
- for(const node of modeBlock)settingsPanel.insertBefore(node,deviceData);
-}
 {
  const settingsHeading=settingsPanel.querySelector('small'),settingsFooterNode=settingsPanel.querySelector('#settings-footer'),settingsOptions=settingsPanel.querySelector('.device-options-grid');
  if(settingsOptions){
@@ -333,7 +337,7 @@ function syncProgrammingSelection(){
 }
 $('select-multiple').hidden=true;
 selectionBar.querySelector('p').textContent='Click keys to add or remove them from the selection. Drag across keys to select a group. Changes write automatically to the selected switches.';
-for(const id of ['remap-source','modify-source','media-source','layer-source','dks-source','hotkey-source','pair-first','modify-target'])$(id).closest('label').hidden=true;
+for(const id of ['remap-source','remap-target','modify-source','modify-target','media-source','layer-source','dks-source','hotkey-source','pair-first']){const label=$(id)?.closest('label');if(label){label.hidden=true;const controls=label.parentElement;if(controls&&![...controls.children].some(node=>!node.hidden))controls.hidden=true;}}
 $('key-enabled').closest('label')?.classList.add('toggle-row');
 // Drag paints the physical keys; single clicks retain the normal toggle behavior.
 let drag=null,suppressClick=false;
@@ -359,8 +363,7 @@ function hideLegacyRefresh(){
  const footer=document.getElementById('settings-footer');if(!footer)return;
  for(const button of footer.querySelectorAll('button'))if(/refresh/i.test(button.textContent||'')){button.hidden=true;button.style.display='none';}
  const note=[...footer.querySelectorAll('p')].find(node=>/refresh reads/i.test(node.textContent||''));
- const message='Reads and saves happen automatically when you open a page or change a setting.';
- if(note&&note.textContent!==message)note.textContent=message;
+ if(note)note.remove();
 }
 setTimeout(hideLegacyRefresh,0);
 const settingsFooterNode=document.getElementById('settings-footer');

@@ -42,6 +42,13 @@ test('save answers HE cache requests before accepting SAVE_END', async () => {
   assert.equal(result.persistenceVerified, false);
 });
 
+test('save skips INIT reports queued by a readback before the CRC request', async () => {
+  const transfer = Array.from({ length: 300 }, () => Buffer.from([8, 0, 2]));
+  const fixtureState = fixture([...transfer, Buffer.from([0, 0xc9]), Buffer.from([0, 0xfe])]);
+  const result = await saveDeviceMemory(fixtureState.device, sections(), { requireCrc: true, timeoutMs: 500 });
+  assert.equal(result.acknowledged, true);
+});
+
 test('a write acknowledgement without SAVE_END fails the save', async () => {
   for (const responses of [[], [Buffer.from([0, 0xc9])], [Buffer.from([8, 0, 25])]]) {
     const fixtureState = fixture(responses);

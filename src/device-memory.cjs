@@ -19,14 +19,14 @@ function cacheCrc(bytes){
   return crc>>>0;
 }
 
-async function saveDeviceMemory(device,sections,{timeoutMs=5000,requireCrc=false,trace=()=>{}}={}){
+async function saveDeviceMemory(device,sections,{timeoutMs=5000,requireCrc=false,trace=()=>{},stream:providedStream=null}={}){
   const tags=new Map();
   for(const [command,{kind,length}] of CRC_SECTIONS){
     const raw=sections.get(kind);
     if(!Buffer.isBuffer(raw)||raw.length<length)throw Error(`Missing device-memory backup (${kind})`);
     tags.set(command,cacheCrc(raw.subarray(0,length)));
   }
-  const stream=device.openReportStream();
+  const stream=providedStream||device.openReportStream(),ownsStream=!providedStream;
   try{
     const send=async payload=>{
       trace({direction:'out',hex:Buffer.from(payload).toString('hex')});
@@ -36,7 +36,7 @@ async function saveDeviceMemory(device,sections,{timeoutMs=5000,requireCrc=false
     await send(start);
     const deadline=Date.now()+timeoutMs,answered=new Set();
     let frames=0;
-    while(Date.now()<deadline&&frames<256){
+    while(Date.now()<deadline&&frames<4096){
       const payload=await stream.next(Math.max(1,Math.min(100,deadline-Date.now())));
       if(!payload)continue;
       frames++;
@@ -51,7 +51,7 @@ async function saveDeviceMemory(device,sections,{timeoutMs=5000,requireCrc=false
     }
     throw Error('Keyboard did not confirm SAVE_END; settings may be lost after disconnecting USB');
   }finally{
-    stream.close();
+    if(ownsStream)stream.close();
   }
 }
 

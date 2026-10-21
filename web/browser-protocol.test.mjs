@@ -74,6 +74,8 @@ test('quick preset readback verifies each requested assignment', () => {
 test('keyboard programming writes use one-based target rows', () => {
   const remap = encodeStandardRemap({ row: 2, col: 1, locked: 0 }, 0, 0, { row: 2, col: 3 });
   assert.deepEqual([...remap.subarray(9, 12)], [0, 3, 3]);
+  const full = encodeStandardRemap({ row: 2, col: 1, locked: 0 }, 0, 0, { row: 5, col: 20 });
+  assert.deepEqual([...full.subarray(10, 12)], [6, 20]);
   const modify = encodeModify({ row: 2, col: 1, locked: 0 }, 0, 0, { type: 0, row: 2, col: 3 });
   assert.deepEqual([...modify.subarray(9, 12)], [0, 3, 3]);
 });
@@ -83,7 +85,7 @@ test('HE writes encode the UI boolean RT flag as a numeric protocol byte', async
   const config = Buffer.alloc(14);
   const adapter = new BrowserAdapter();
   let sent;
-  const heWrites = [];
+  const heWrites = [], order = [];
   adapter.device = {
     readInit: async kind => {
       if (kind === 1) return Buffer.from(config);
@@ -95,6 +97,7 @@ test('HE writes encode the UI boolean RT flag as a numeric protocol byte', async
       sent = Buffer.from(payload);
       if (sent[1] === 2) sent.subarray(2, 16).copy(config);
       else if (sent[1] === 0x31) {
+        order.push('write');
         heWrites.push(sent);
         const offset = (2 * 14 + 1) * 14;
         raw[offset] = sent[6];
@@ -102,6 +105,7 @@ test('HE writes encode the UI boolean RT flag as a numeric protocol byte', async
       }
     },
     openReportStream() {
+      order.push('stream');
       const responses = [Buffer.from([0, 0xc9]), Buffer.from([0, 0xca]), Buffer.from([0, 0xfe])];
       return { next: async () => responses.shift() ?? null, close() {} };
     }
@@ -118,6 +122,7 @@ test('HE writes encode the UI boolean RT flag as a numeric protocol byte', async
     fixedUp: 1
   });
   assert.equal(heWrites.length, 1);
+  assert.deepEqual(order.slice(0, 2), ['stream', 'write']);
   assert.equal(heWrites[0][6], 1);
   assert.equal(heWrites[0].readUInt16LE(7), 100);
   assert.equal(result.key.rtOn, true);

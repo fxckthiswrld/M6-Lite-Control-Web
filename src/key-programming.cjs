@@ -85,7 +85,7 @@ function encodeFullModRestore(key,layer,allSteps) {
 }
 function encodeStandardRemap(key,layer,allSteps,target){
   if(!key||!Number.isInteger(key.row)||!Number.isInteger(key.col))throw new Error('Source key required');
-  if(!target||!Number.isInteger(target.row)||!Number.isInteger(target.col)||target.row<0||target.row>4||target.col<0||target.col>13)throw new RangeError('Invalid remap target');
+  if(!target||!Number.isInteger(target.row)||!Number.isInteger(target.col)||target.row<0||target.row>5||target.col<0||target.col>20)throw new RangeError('Invalid remap target');
   if(![0,1].includes(layer)||!Number.isInteger(allSteps)||allSteps<0||allSteps>65535)throw new RangeError('Invalid programming profile');
   const b=Buffer.alloc(20);b.set([8,3,1,layer]);b.writeUInt16LE(allSteps,4);b[6]=key.row;b[7]=key.col;b[8]=((key.locked||0)<<4);b[10]=target.row+1;b[11]=target.col;return b;
 }
@@ -94,7 +94,7 @@ function encodeModify(key,layer,allSteps,modify){
   if(![0,1].includes(layer)||!Number.isInteger(allSteps)||allSteps<0||allSteps>65535)throw new Error('Invalid programming profile');
   if(!modify||![0,1].includes(modify.type))throw new Error('Modify type must be keyboard or mouse');
   const b=header(key,layer,allSteps,0);b[9]=modify.type;
-  if(modify.type===0){byte(modify.row,'target row',4);byte(modify.col,'target column',13);b[10]=modify.row+1;b[11]=modify.col;}
+  if(modify.type===0){byte(modify.row,'target row',5);byte(modify.col,'target column',20);b[10]=modify.row+1;b[11]=modify.col;}
   else {byte(modify.button,'mouse button');if(!Number.isInteger(modify.wheel)||modify.wheel<-128||modify.wheel>127)throw new RangeError('Invalid mouse wheel');if(!Number.isInteger(modify.x)||modify.x<-32768||modify.x>32767||!Number.isInteger(modify.y)||modify.y<-32768||modify.y>32767)throw new RangeError('Invalid mouse movement');b[10]=modify.button;b.writeInt16LE(modify.x,11);b.writeInt16LE(modify.y,13);b.writeInt8(modify.wheel,15);}
   byte(modify.mode??0,'modify mode');byte(modify.interval??0,'modify interval',65535);
   b[16]=modify.mode??0;b.writeUInt16LE(modify.interval??0,17);
