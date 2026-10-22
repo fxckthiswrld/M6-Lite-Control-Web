@@ -134,6 +134,7 @@ body[data-page=programming] .key[data-assignment-kind=snap]:after,body[data-page
 body[data-page=programming] .key[data-assignment-kind=remap]:after,body[data-page=range] .key[data-assignment-kind=remap]:after{background:#0b3550;border-color:#1d6f9c;color:#8fd3ff}
 body[data-page=programming] .key[data-assignment-kind=fn]:after,body[data-page=range] .key[data-assignment-kind=fn]:after,body[data-page=programming] .key[data-assignment-kind=media]:after,body[data-page=range] .key[data-assignment-kind=media]:after{background:#2a2a33;border-color:#52525b;color:#d4d4d8}
 
+.programming-group-note{margin:0 0 12px;color:#a1a1aa;font-size:13px;line-height:1.5}
 .programming-slot-grid{display:flex;flex-wrap:wrap;gap:12px;margin:14px 0}
 .programming-slot{flex:0 0 160px;width:160px;min-height:78px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:16px 12px;border:1px dashed #52525b;border-radius:12px;background:#191a1d;color:#a1a1aa;cursor:pointer;font:inherit;box-shadow:none}
 .programming-slot span{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#71717a}
@@ -155,11 +156,8 @@ body[data-page=programming] .key[data-assignment-kind=fn]:after,body[data-page=r
 .programming-group-panel[hidden]{display:none!important}
 .programming-group-panel[data-group=DKS]>.programming-card>summary,.programming-group-panel[data-group=Snap]>.programming-card>summary{display:none!important}
 
-.dks-title{margin:0 0 8px;font-size:18px;color:#f4f4f5}
-
 .programming-group-panel[data-group=DKS]>.programming-card,.programming-group-panel[data-group=Snap]>.programming-card{padding:20px}
 .programming-group-panel[data-group=DKS]>.programming-card>p,.programming-group-panel[data-group=DKS]>.programming-card>.controls,.programming-group-panel[data-group=DKS]>.programming-card>.actions,.programming-group-panel[data-group=DKS]>.programming-card>label,.programming-group-panel[data-group=DKS]>.programming-card>hr,.programming-group-panel[data-group=Snap]>.programming-card>p,.programming-group-panel[data-group=Snap]>.programming-card>.controls,.programming-group-panel[data-group=Snap]>.programming-card>.actions,.programming-group-panel[data-group=Snap]>.programming-card>label,.programming-group-panel[data-group=Snap]>.programming-card>hr{margin-left:0!important;margin-right:0!important}
-.programming-group-panel[data-group=DKS] .dks-title{margin:0 0 10px!important}
 .programming-group-panel[data-group=DKS] .programming-slot-grid{margin-top:12px}
 .programming-group-panel[data-group=DKS] .programming-card>.actions{padding-bottom:0}
 

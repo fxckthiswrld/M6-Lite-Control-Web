@@ -11,7 +11,7 @@
   ]);
   const style=document.createElement('style');
   style.textContent='.page-heading .eyebrow{display:none!important}'
-    +'body[data-page=home] .page-heading p,body[data-page=range] .page-heading p,body[data-page=programming] .page-heading p,body[data-page=lighting] .page-heading p{display:none!important}';
+    +'body[data-page=home] .page-heading p,body[data-page=range] .page-heading p,body[data-page=programming] .page-heading p,body[data-page=lighting] .page-heading p,body[data-page=settings] .page-heading p{display:none!important}';
   (document.head||document.documentElement).append(style);
 
   function apply(){
