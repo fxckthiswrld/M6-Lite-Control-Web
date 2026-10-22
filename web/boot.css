@@ -189,7 +189,7 @@ body,button,input,select,textarea{font-family:var(--font-sans)}
 .panel button:not(:disabled):active,.selection-bar button:not(:disabled):active,.profiles button:not(:disabled):active{transform:scale(.97)}
 @keyframes hero-switch-pop{50%{transform:scale(1.06)}}
 .device-option-heading input:checked,.toggle-row input:checked,.fps-switch input:checked{animation:hero-switch-pop .18s ease}
-@media (prefers-reduced-motion: reduce){.panel,.shortcut-panel,.programming-group-panel:not([hidden]),.lighting-layer-card:not([hidden]),.device-option,.programming-card,.performance-card,.lighting-colours-card,.lighting-effects-card,.device-option-heading input,.toggle-row input,.fps-switch input{animation:none!important;transition:none!important;transform:none!important}}
+@media (prefers-reduced-motion: reduce){.panel,.shortcut-panel,.programming-group-panel:not([hidden]),.lighting-layer-card:not([hidden]),.device-option,.programming-card,.performance-card,.lighting-colours-card,.lighting-effects-card,.device-option-heading input,.toggle-row input,.fps-switch input,.hotkey-toggle input[type=checkbox]{animation:none!important;transition:none!important;transform:none!important}}
 body[data-page="home"] #keyboard .key{cursor:default;pointer-events:none}
 
 @font-face{font-family:'Space Mono';font-style:normal;font-weight:400;font-display:swap;src:url('fonts/space-mono-latin.woff2') format('woff2')}
@@ -241,14 +241,14 @@ body[data-page=home] .keyboard .key[data-shortcut]:after{font-size:9px!important
 .key-library-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(44px,1fr));gap:6px;margin-top:8px;max-height:230px;overflow:auto;padding-right:2px}
 .key-library-button{min-width:0;padding:8px 4px!important;background:#27272a!important;color:#d4d4d8!important;border:1px solid #3f3f46!important;border-radius:8px!important;font-size:11px!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .key-library-button.selected{border-color:#008cff!important;background:#0b3550!important;color:#8fd3ff!important}
-.hotkey-toggle{position:relative;display:inline-flex;align-items:center;gap:10px;color:#d4d4d8;cursor:pointer}
-.hotkey-toggle input{appearance:none!important;-webkit-appearance:none!important;width:42px!important;height:24px!important;min-width:42px!important;border-radius:999px!important;background:#3f3f46!important;border:1px solid #52525b!important;position:relative;cursor:pointer;padding:0!important}
-.hotkey-toggle input:before{content:"";position:absolute;width:18px;height:18px;left:2px;top:2px;border-radius:50%;background:#d8d9de;transition:transform .16s}
-.hotkey-toggle input:checked{background:#008cff!important;border-color:#008cff!important}
-.hotkey-toggle input:checked:before{transform:translateX(18px)}
-.hotkey-toggle i{display:none}
+.hotkey-toggle{display:inline-flex;align-items:center;gap:10px;color:#d4d4d8;cursor:pointer}
+.hotkey-toggle input[type=checkbox]{appearance:none!important;-webkit-appearance:none!important;width:42px!important;height:24px!important;min-width:42px!important;margin:0!important;padding:0!important;border:1px solid #52525b!important;border-radius:999px!important;background:#3f3f46!important;position:relative;cursor:pointer;transition:background .16s ease,border-color .16s ease}
+.hotkey-toggle input[type=checkbox]::before{content:"";position:absolute;width:18px;height:18px;left:2px;top:2px;border-radius:50%;background:#e4e4e7;transition:transform .16s ease,background .16s ease}
+.hotkey-toggle input[type=checkbox]:checked{background:#008cff!important;border-color:#3b9dff!important;animation:hero-switch-pop .18s ease}
+.hotkey-toggle input[type=checkbox]:checked::before{transform:translateX(18px);background:#fff}
+.hotkey-toggle input[type=checkbox]:disabled{opacity:.5;cursor:default}
+.hotkey-toggle input[type=checkbox]:focus-visible{outline:2px solid #008cff;outline-offset:2px}
 .hotkey-interval{display:flex;align-items:center;gap:10px;color:#d4d4d8}
-.hotkey-interval input[type=range]{width:140px;accent-color:#008cff}
 #modify-interval-value{min-width:30px;color:#8fd3ff;font-size:12px}
 .modify-mouse-key svg{width:30px;height:42px;display:block}
 .modify-mouse-key{width:74px!important;min-height:72px!important}#remap-library-layout{display:grid;grid-template-columns:260px minmax(0,1fr);gap:16px;margin:16px 0;align-items:start}
@@ -294,9 +294,5 @@ body[data-page=home] .keyboard .key[data-shortcut]:after{font-size:9px!important
 .remap-pair-key small{font-size:8px!important;letter-spacing:.05em!important;line-height:1;white-space:nowrap}
 .remap-pair-arrow{align-self:center}
 #modify-current{display:none!important}
-.hotkey-switch{position:relative;display:inline-flex;width:42px;height:24px;flex:0 0 42px;vertical-align:middle}
-.hotkey-switch input{position:absolute!important;inset:0!important;width:42px!important;height:24px!important;min-width:42px!important;margin:0!important;z-index:2}
-.hotkey-switch input:before{content:none!important}
-.hotkey-switch i{display:block!important;position:absolute;left:3px;top:3px;width:18px;height:18px;border-radius:50%;background:#d8d9de;transition:transform .16s;pointer-events:none;z-index:1}
-.hotkey-switch input:checked + i{transform:translateX(18px);background:#fff}
+
 body[data-page=programming] .key.key-dks-target,body[data-page=range] .key.key-dks-target{outline:2px solid #5ee9a8;outline-offset:-2px}

@@ -40,7 +40,7 @@ $('dks-all-confirm').onclick=async()=>{
   }catch(error){$('dks-status').textContent=error.message;}finally{setBusy(false);}
 };
 document.querySelector('header').after(presetPanel);
-presetPanel.insertAdjacentHTML('afterbegin','<small>QUICK PRESETS</small><h2>DKS / SNAP / CL</h2><p id="preset-preview"></p><div class="actions"><button id="dks-wasd">DKS - WASD</button><button id="dks-wasd-disable" class="secondary">Disable WASD DKS</button><button id="snap-ad">SNAP - A / D</button><button id="cl-ad">CL - A / D</button><button id="snap-ad-disable" class="secondary">Disable A / D SNAP</button><button id="preset-defaults" class="secondary">Restore WASD defaults</button><button id="preset-off" disabled title="Disable quick presets in the current profile">Off</button></div><p id="preset-status" role="status" aria-live="polite"></p><hr>');
+presetPanel.insertAdjacentHTML('afterbegin','<small>QUICK PRESETS</small><h2>DKS / SNAP / SOCD</h2><p id="preset-preview"></p><div class="actions"><button id="dks-wasd">DKS - WASD</button><button id="dks-wasd-disable" class="secondary">Disable WASD DKS</button><button id="snap-ad">SNAP - A / D</button><button id="cl-ad">SOCD - A / D</button><button id="snap-ad-disable" class="secondary">Disable A / D SNAP</button><button id="preset-defaults" class="secondary">Restore WASD defaults</button><button id="preset-off" disabled title="Disable quick presets in the current profile">Off</button></div><p id="preset-status" role="status" aria-live="polite"></p><hr>');
 advancedPanel.insertAdjacentHTML('beforeend','<hr><h2>HotKey</h2><p>Repeat one standard key at a controlled interval. The source must be in Standard mode.</p><div class="controls"><label>Source switch<select id="hotkey-source"></select></label><label>Interval<input id="hotkey-interval" type="number" min="0" max="255" step="1" value="23"></label></div><p id="hotkey-current"></p><div class="actions"><button id="hotkey-apply">Apply HotKey</button><span id="hotkey-status" role="status" aria-live="polite"></span></div>');
 hePanel.after(advancedPanel);
 const pendingPanel=document.createElement('section');pendingPanel.className='panel';pendingPanel.hidden=true;
@@ -291,7 +291,7 @@ $('lighting-speed').closest('.lighting-section')?.classList.add('speed-section')
 const remapPanel=document.createElement('section');remapPanel.className='panel';remapPanel.hidden=true;
 remapPanel.innerHTML='<small>PROGRAMMING</small><h2>Remap</h2><p>Assign one physical switch to another standard keyboard action. The source must be in Standard mode.</p><div class="controls"><label>Source switch<select id="remap-source"></select></label><label>Target action<select id="remap-target"></select></label></div><p id="remap-current"></p><div class="actions"><button id="remap-apply">Apply remap</button><span id="remap-status" role="status"></span></div><hr><h2>Layer assignment</h2><p>Assign FN1, FN2 or FN3, as in MMPanel.</p><div class="controls"><label>Source switch<select id="layer-source"></select></label><label>Target layer<select id="layer-target"><option value="0">FN1</option><option value="1">FN2</option><option value="2">FN3</option></select></label></div><p id="layer-current"></p><div class="actions"><button id="layer-apply">Apply FN</button><button id="layer-standard" disabled>Return to standard</button><span id="layer-standard-note"></span><span id="layer-status" role="status" aria-live="polite"></span></div><hr><h2>Media</h2><p>Choose or change a media or editing action.</p><div class="controls"><label>Source switch<select id="media-source"></select></label><label>Action<select id="media-action"></select></label></div><p id="media-current"></p><div class="actions"><button id="media-apply">Apply Media</button><button id="media-standard" disabled>Return to standard</button><span id="media-standard-note"></span><span id="media-status" role="status" aria-live="polite"></span></div>';
 pendingPanel.after(remapPanel);
-remapPanel.insertAdjacentHTML('beforeend','<hr><h2>Modify</h2><div class="modify-editor"><div id="modify-keyboard-panel" hidden></div><div id="modify-mouse-panel" hidden><div class="modify-mouse-grid">'+Object.entries(window.M6_MOUSE_ACTIONS||{}).filter(([id])=>['left-button','right-button','middle-button','wheel-up','wheel-down'].includes(id)).map(([id,action])=>'<button type="button" class="modify-mouse-key" data-mouse-action="'+id+'" title="'+action.label+'" aria-label="'+action.label+'">'+(window.M6_MOUSE_SVG?.[id]||'ðŸ–±')+'<span>'+action.label+'</span></button>').join('')+'</div></div><div class="modify-hotkey-row"><label class="hotkey-toggle"><span>HotKey</span><span class="hotkey-switch"><input id="modify-hotkey" type="checkbox"><i></i></span></label><label class="hotkey-interval">Interval <input id="modify-interval" type="range" min="0" max="255" step="1" value="23"><output id="modify-interval-value">23</output></label></div><div class="modify-hidden-fields"><select id="modify-type" hidden><option value="0">Keyboard</option><option value="1">Mouse</option></select><select id="modify-source"></select><select id="modify-target"></select><input id="modify-button" type="number" value="0"><input id="modify-x" type="number" value="0"><input id="modify-y" type="number" value="0"><input id="modify-wheel" type="number" value="0"><input id="modify-mode" type="number" value="0"></div><p id="modify-current"></p><div class="actions"><button id="modify-apply">Apply</button><span id="modify-status" role="status" aria-live="polite"></span></div></div>');
+remapPanel.insertAdjacentHTML('beforeend','<hr><h2>Modify</h2><div class="modify-editor"><div id="modify-keyboard-panel" hidden></div><div id="modify-mouse-panel" hidden><div class="modify-mouse-grid">'+Object.entries(window.M6_MOUSE_ACTIONS||{}).filter(([id])=>['left-button','right-button','middle-button','wheel-up','wheel-down'].includes(id)).map(([id,action])=>'<button type="button" class="modify-mouse-key" data-mouse-action="'+id+'" title="'+action.label+'" aria-label="'+action.label+'">'+(window.M6_MOUSE_SVG?.[id]||'ðŸ–±')+'<span>'+action.label+'</span></button>').join('')+'</div></div><div class="modify-hotkey-row"><label class="hotkey-toggle"><span>HotKey</span><input id="modify-hotkey" type="checkbox"></label><span class="hotkey-interval">Interval <output id="modify-interval-value">23</output></span></div><div class="modify-hidden-fields"><select id="modify-type" hidden><option value="0">Keyboard</option><option value="1">Mouse</option></select><select id="modify-source"></select><select id="modify-target"></select><input id="modify-button" type="number" value="0"><input id="modify-x" type="number" value="0"><input id="modify-y" type="number" value="0"><input id="modify-wheel" type="number" value="0"><input id="modify-mode" type="number" value="0"></div><p id="modify-current"></p><div class="actions"><button id="modify-apply">Apply</button><span id="modify-status" role="status" aria-live="polite"></span></div></div>');
 function fillHotKey(){if(!programming||!profile)return;const select=$('hotkey-source'),previous=select.value||selectedId;select.replaceChildren();for(const key of profile.layout){const option=document.createElement('option');option.value=key.id;option.textContent=`${key.label||'Space'} (${key.row+1}:${key.col+1})`;select.appendChild(option);}select.value=previous;updateHotKey();}
 function updateHotKey(){if(!programming)return;const [row,col]=$('hotkey-source').value.split(':').map(Number),key=programming.keys.find(k=>k.row===row&&k.col===col);if(!key)return;$('hotkey-interval').value=key.hotKey?.interval??23;$('hotkey-current').textContent=`Current mode: ${key.mode===0?'Standard':`Mode ${key.mode}`}. HotKey type: ${key.hotKey?.type??0}, interval: ${key.hotKey?.interval??0}.`;$('hotkey-apply').disabled=busy||key.mode!==0;}
 $('hotkey-source').onchange=updateHotKey;$('hotkey-apply').onclick=async()=>{if(busy||!programming)return;setBusy(true);$('hotkey-status').textContent='Applying and verifying HotKey...';try{const reply=await window.keyboard.setHotKey({layer,id:$('hotkey-source').value,interval:$('hotkey-interval').valueAsNumber});if(!reply.ok)throw new Error(reply.error);programming=reply.result;fillHotKey();$('hotkey-status').textContent='HotKey applied and verified by readback.';}catch(e){$('hotkey-status').textContent=e.message;}finally{setBusy(false);updateHotKey();}};
@@ -318,21 +318,21 @@ function fillModify(){
 }
 function mouseActionFor(m){return Object.entries(window.M6_MOUSE_ACTIONS||{}).find(([,action])=>action.button===(m.button||0)&&action.x===(m.x||0)&&action.y===(m.y||0)&&action.wheel===(m.wheel||0))?.[0]||null;}
 function updateModifyState(){
- if(!programming)return;
- const [row,col]=$('modify-source').value.split(':').map(Number),key=programming.keys.find(k=>k.row===row&&k.col===col);if(!key)return;
- const m=key.modify||{},type=m.type||0,target=`key:${Math.max(0,(m.row||1)-1)}:${m.col||0}`;
- $('modify-type').value=String(type);$('modify-target').value=target;$('modify-button').value=m.button||0;$('modify-x').value=m.x||0;$('modify-y').value=m.y||0;$('modify-wheel').value=m.wheel||0;$('modify-mode').value=m.mode||0;$('modify-hotkey').checked=m.mode===2;$('modify-interval').value=m.interval||23;$('modify-interval-value').textContent=m.interval||23;
+ if(!programming){$('modify-apply').disabled=true;$('modify-hotkey').disabled=true;return;}
+ const [row,col]=$('modify-source').value.split(':').map(Number),key=programming.keys.find(k=>k.row===row&&k.col===col);if(!key){$('modify-apply').disabled=true;$('modify-hotkey').disabled=true;return;}
+ const m=key.modify||{},type=m.type||0,remapped=type===0&&m.mode!==2&&m.row>=1&&(m.row!==key.row+1||m.col!==key.col),target=`key:${remapped?m.row-1:key.row}:${remapped?m.col:key.col}`;
+ $('modify-type').value=String(type);$('modify-target').value=target;$('modify-button').value=m.button||0;$('modify-x').value=m.x||0;$('modify-y').value=m.y||0;$('modify-wheel').value=m.wheel||0;$('modify-mode').value=m.mode||0;$('modify-hotkey').checked=m.mode===2;$('modify-interval-value').textContent='23';
  for(const button of remapPanel.querySelectorAll('[data-modify-type]'))button.setAttribute('aria-pressed',String(Number(button.dataset.modifyType)===type));
  $('modify-keyboard-panel').hidden=type===1;$('modify-mouse-panel').hidden=type!==1;const mouse=mouseActionFor(m);for(const button of remapPanel.querySelectorAll('[data-mouse-action]'))button.classList.toggle('selected',button.dataset.mouseAction===mouse);
  const label=type===1?(window.M6_MOUSE_ACTIONS?.[mouse]?.label||'Mouse action'):fullSizeTargetLabel((m.row||1)-1,m.col||0);
  $('modify-current').textContent=`${type===1?'Mouse':'Keyboard'}: ${label}${m.mode===2?` - HotKey ${m.interval||0}`:''}.`;
- $('modify-apply').disabled=busy||key.mode!==0;
+ $('modify-apply').disabled=busy||key.mode!==0;$('modify-hotkey').disabled=busy||key.mode!==0;
  updateProgrammingIndicators();
 }
 $('modify-source').onchange=updateModifyState;
 for(const button of remapPanel.querySelectorAll('[data-modify-type]'))button.onclick=()=>{$('modify-type').value=button.dataset.modifyType;updateModifyState();};
 for(const button of remapPanel.querySelectorAll('[data-mouse-action]'))button.onclick=()=>{const action=window.M6_MOUSE_ACTIONS?.[button.dataset.mouseAction];if(!action)return;$('modify-type').value='1';$('modify-button').value=action.button;$('modify-x').value=action.x;$('modify-y').value=action.y;$('modify-wheel').value=action.wheel;updateModifyState();};
- $('modify-apply').onclick=async()=>{if(busy||!programming)return;const type=Number($('modify-type').value),parts=$('modify-target').value.split(':').slice(1).map(Number),modify={type,row:parts[0],col:parts[1],button:Number($('modify-button').value),x:Number($('modify-x').value),y:Number($('modify-y').value),wheel:Number($('modify-wheel').value),mode:$('modify-hotkey').checked?2:0,interval:$('modify-hotkey').checked?Number($('modify-interval').valueAsNumber):0};setBusy(true);$('modify-status').textContent='Applying and verifying...';try{const reply=await window.keyboard.setModify({layer,id:$('modify-source').value,modify});if(!reply.ok)throw new Error(reply.error);programming=reply.result;const appliedKey=reply.result.keys.find(k=>`${k.row}:${k.col}`===$('modify-source').value);if($('modify-hotkey').checked&&appliedKey?.modify?.mode!==2)throw new Error(`HotKey was not applied by the keyboard (readback mode ${appliedKey?.modify?.mode??'unknown'}).`);fillModify();$('modify-status').textContent='Applied and verified by readback.';}catch(e){$('modify-status').textContent=e.message;}finally{setBusy(false);updateModifyState();}};
+ $('modify-apply').onclick=async()=>{if(busy||!programming)return;const type=Number($('modify-type').value),parts=$('modify-target').value.split(':').slice(1).map(Number),wantHotKey=$('modify-hotkey').checked,modify={type,row:parts[0],col:parts[1],button:Number($('modify-button').value),x:Number($('modify-x').value),y:Number($('modify-y').value),wheel:Number($('modify-wheel').value),mode:wantHotKey?2:0,interval:wantHotKey?23:0};setBusy(true);$('modify-status').textContent='Applying and verifying...';try{const reply=await window.keyboard.setModify({layer,id:$('modify-source').value,modify});if(!reply.ok)throw new Error(reply.error);programming=reply.result;const appliedKey=reply.result.keys.find(k=>`${k.row}:${k.col}`===$('modify-source').value);if(wantHotKey&&appliedKey?.modify?.mode!==2)throw new Error(`HotKey was not applied by the keyboard (readback mode ${appliedKey?.modify?.mode??'unknown'}).`);if(!wantHotKey&&appliedKey?.modify?.mode===2)throw new Error('HotKey was not removed by the keyboard.');fillModify();$('modify-status').textContent='Applied and verified by readback.';}catch(e){$('modify-status').textContent=e.message;}finally{setBusy(false);updateModifyState();}};
 function fillMedia(){if(!profile||!programming)return;const select=$('media-source'),previous=select.value||selectedId;select.replaceChildren();for(const key of profile.layout){const option=document.createElement('option');option.value=key.id;option.textContent=`${key.label||'Space'} (${key.row+1}:${key.col+1})`;select.appendChild(option);}select.value=previous;updateMediaState();}
 function fillLayer(){if(!profile||!programming)return;const select=$('layer-source'),previous=select.value||selectedId;select.replaceChildren();for(const key of profile.layout){const option=document.createElement('option');option.value=key.id;option.textContent=`${key.label||'Space'} (${key.row+1}:${key.col+1})`;select.appendChild(option);}select.value=previous;updateLayerState();}
 function standardReturnReason(key){
@@ -678,7 +678,7 @@ function programmingBadge(assignment){
  const labelFor=id=>profile?.layout.find(k=>k.id===id)?.label||id;
  if(assignment.mode===5)return {text:'SNAP',kind:'snap'};
  if(assignment.mode===6)return {text:'SOCD',kind:'snap'};
- if(assignment.mode===4){const d=assignment.dks||{};return {text:d.type===1?'DKS-MOUSE':d.row>0?`DKS→${fullSizeTargetLabel(d.row-1,d.col)}`:'DKS',kind:'dks'};}
+ if(assignment.mode===4){const d=assignment.dks||{};return {text:d.type===1?'DKS-MOUSE':d.row>0?`DKS→${fullSizeTargetLabel(d.row,d.col)}`:'DKS',kind:'dks'};}
  if(assignment.mode===3)return {text:[0,1,2].includes(assignment.layer?.layer)?`FN${assignment.layer.layer+1}`:'FN',kind:'fn'};
  if(assignment.mode===2)return {text:'MEDIA',kind:'media'};
  if(assignment.mode===0&&assignment.modify?.type===1)return {text:mouseActionFor(assignment.modify)||'MOUSE',kind:'remap'};
@@ -854,12 +854,13 @@ async function loadProfile(nextLayer=layer) {
     const reply=await window.keyboard.readProfile(nextLayer);
     if(!reply.ok)throw new Error(reply.error);
     layer=nextLayer;profile=reply.result;
-    $('preset-preview').textContent=`M${layer+1}: DKS changes W, A, S and D (W/S and A/D targets, interval 20). SNAP and CL affect A and D while preserving W/S. Off / Restore WASD defaults clears all four.`;
+    $('preset-preview').textContent=`M${layer+1}: DKS changes W, A, S and D (W/S and A/D targets, interval 20). SNAP and SOCD affect A and D while preserving W/S. Off / Restore WASD defaults clears all four.`;
     $('preset-status').textContent='';
     programming=null;
     drawKeyboard();showSelected();
-    for(const [id,fallback] of [['pair-first','2:1'],['pair-second','2:3'],['dks-source','2:1'],['dks-target','2:3']]){
-      const select=$(id),previous=select.value||fallback;select.replaceChildren();
+    for(const id of ['pair-first','pair-second','dks-source','dks-target']){
+      const select=$(id),previous=select.value;select.replaceChildren();
+      const assign=document.createElement('option');assign.value='';assign.textContent='Assign';select.appendChild(assign);
       for(const key of profile.layout){const option=document.createElement('option');option.value=key.id;option.textContent=`${key.label || 'Space'} (${key.row + 1}:${key.col + 1})`;select.appendChild(option);}
       if(id==='dks-target')for(const [action,label] of [['left-button','Left mouse button'],['right-button','Right mouse button'],['middle-button','Middle mouse button'],['wheel-up','Scroll up'],['wheel-down','Scroll down'],['up','Move mouse up'],['down','Move mouse down'],['left','Move mouse left'],['right','Move mouse right']]){
         const option=document.createElement('option');option.value=`mouse:${action}`;option.textContent=label;select.appendChild(option);
@@ -998,13 +999,15 @@ function showPairState(){
   const names={0:'Standard',2:'Media',3:'FN/layer',4:'DKS',5:'Snap Tap',6:'SOCD / AD Cancel'};
   $('pair-current').textContent=['pair-first','pair-second'].map(id=>{
     const physical=profile.layout.find(k=>k.id===$(id).value);
-    if(!physical)return 'Select a switch';
+    if(!physical)return 'Assign';
     const key=programming.keys.find(k=>k.row===physical.row&&k.col===physical.col);
     return key?`${physical.label}: ${names[key.mode]||'Other mode'}${key.locked?' (key disabled)':''}`:`${physical.label}: Unreadable`;
   }).join(' - ');
 }
 function showDksState(){
-  const [row,col]=$('dks-source').value.split(':').map(Number),key=programming?.keys.find(k=>k.row===row&&k.col===col);
+  const source=$('dks-source').value;
+  if(!source){$('dks-target').value='';$('dks-status').textContent='Choose a source key and a DKS target.';if(typeof syncProgrammingSlots==='function')syncProgrammingSlots();return;}
+  const [row,col]=source.split(':').map(Number),key=programming?.keys.find(k=>k.row===row&&k.col===col);
   if(!key)return;
   if(key.mode===4){
     if(key.dks.type===0&&key.dks.row>0)$('dks-target').value=`${key.dks.row-1}:${key.dks.col}`;
@@ -1017,6 +1020,7 @@ function showDksState(){
 $('dks-source').onchange=showDksState;
 async function applyDks(enabled){
   if(busy||!programming)return;
+  if(!$('dks-source').value||(enabled&&!$('dks-target').value)){$('dks-status').textContent='Choose a source key and a DKS target.';return;}
   if(enabled&&!$('dks-interval').reportValidity())return;
   setBusy(true);$('dks-status').textContent='Applying and verifying DKS...';
   try{
@@ -1044,12 +1048,12 @@ async function applySnapPreset(enabled){
 }
 async function applyClPreset(){
   if(busy||!programming)return;
-  setBusy(true);$('preset-status').textContent='Applying CL to A / D and verifying...';
+  setBusy(true);$('preset-status').textContent='Applying SOCD to A / D and verifying...';
   try{
     const reply=await window.keyboard.quickPreset({layer,preset:'cl'});
     if(!reply.ok)throw new Error(reply.error);
     programming=reply.result;showPairState();showDksState();updateProgrammingIndicators();clearPairSelection();
-    $('preset-status').textContent='CL enabled on A and D; W/S unchanged.';
+    $('preset-status').textContent='SOCD enabled on A and D; W/S unchanged.';
   }catch(error){$('preset-status').textContent=error.message;}finally{setBusy(false);}
 }
 async function applyPresetOff(){
@@ -1071,6 +1075,8 @@ function clearPairSelection(){$('pair-first').value='';$('pair-second').value=''
 function clearDksSelection(){$('dks-source').value='';$('dks-target').value='';if(typeof syncProgrammingSlots==='function')syncProgrammingSlots();}
 async function applyPair(disable=false){
   if(busy||!programming)return;
+  const first=$('pair-first').value,second=$('pair-second').value;
+  if(!first||!second||first===second){$('pair-status').textContent='Choose two different switches.';return;}
   setBusy(true);$('pair-status').textContent='Applying pair and verifying device readback...';
   try{
     const reply=await window.keyboard.setPair({layer,first:$('pair-first').value,second:$('pair-second').value,mode:disable?0:Number($('pair-mode').value)});
@@ -1200,7 +1206,7 @@ for(const panel of [remapPanel,advancedPanel]){
 }
 const calibrationNav=document.createElement('div');calibrationNav.className='nav';calibrationNav.textContent='Calibration';document.querySelector('aside .bottom').before(calibrationNav);
 calibrationNav.onclick=()=>{if(!busy)window.m6UI?.navigate?.('calibration');};
-setBusy(false);
+setBusy(false);updateModifyState();
 restoreCalibrationState().catch(error=>{$("lighting-mode-status").textContent=error.message;});
 setTimeout(autoConnectAtStartup,0);
 
@@ -1251,9 +1257,9 @@ $('media-action').addEventListener('change',autoApply(()=>$('media-apply').click
 $('hotkey-interval').addEventListener('change',autoApply(()=>$('hotkey-apply').click(),250));
 $('dks-target').addEventListener('change',autoApply(()=>$('dks-apply').click(),80));
 $('dks-interval').addEventListener('change',autoApply(()=>$('dks-apply').click(),250));
-for(const id of ['modify-type','modify-button','modify-x','modify-y','modify-wheel','modify-mode','modify-interval'])$(id).addEventListener('change',autoApply(()=>$('modify-apply').click(),250));
+for(const id of ['modify-type','modify-button','modify-x','modify-y','modify-wheel','modify-mode'])$(id).addEventListener('change',autoApply(()=>$('modify-apply').click(),250));
 const applyModifySoon=autoApply(()=>$('modify-apply').click(),80);
-$('modify-hotkey').addEventListener('change',()=>{const interval=$('modify-interval');if($('modify-hotkey').checked&&Number(interval.valueAsNumber)<1){interval.value='23';$('modify-interval-value').textContent='23';}$('modify-status').textContent=$('modify-hotkey').checked?'Applying HotKey...':'Removing HotKey...';applyModifySoon();});
+$('modify-hotkey').addEventListener('change',()=>{const source=$('modify-source').value,[row,col]=source.split(':').map(Number),key=programming?.keys.find(k=>k.row===row&&k.col===col);if(busy||!key||key.mode!==0){$('modify-hotkey').checked=key?.modify?.mode===2;$('modify-status').textContent=key?'HotKey is available for Standard switches only.':'Select a switch first.';return;}$('modify-status').textContent=$('modify-hotkey').checked?'Applying HotKey...':'Removing HotKey...';applyModifySoon();});
 $('key-enabled').addEventListener('change',autoApply(()=>$('key-enabled-apply').click(),80));
 $('pair-mode').addEventListener('change',autoApply(()=>$('pair-apply').click(),80));
 for(const button of document.querySelectorAll('[data-pair-mode]'))button.addEventListener('click',autoApply(()=>$('pair-apply').click(),80));

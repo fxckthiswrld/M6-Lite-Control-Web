@@ -172,10 +172,6 @@ body{background:#09090b;color:#f4f4f5}.app-sidebar{background:#101012;border-col
 .remap-pair-key small{line-height:1}
 .remap-pair-arrow{align-self:center}
 #modify-current{display:none!important}
-.hotkey-switch{position:relative;display:inline-flex;width:42px;height:24px;flex:0 0 42px;vertical-align:middle}
-.hotkey-switch input{position:absolute;inset:0;width:42px!important;height:24px!important;min-width:42px!important;margin:0!important;z-index:2}
-.hotkey-switch input:before{content:none!important}
-.hotkey-switch i{display:block!important;position:absolute;left:3px;top:3px;width:18px;height:18px;border-radius:50%;background:#d8d9de;transition:transform .16s;pointer-events:none;z-index:1}
-.hotkey-switch input:checked + i{transform:translateX(18px);background:#fff}
+
 .remap-pair-key{align-items:center;text-align:center}
 .remap-pair-key small{font-size:8px;letter-spacing:.05em;white-space:nowrap}
