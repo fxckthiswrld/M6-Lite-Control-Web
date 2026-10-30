@@ -70,7 +70,11 @@ header .header-actions{display:none!important}
 .lighting-single-colours-card .controls label{display:block;margin:10px 0}
 .lighting-single-colours-card .controls label:has(#single-enabled){display:flex!important;align-items:center;gap:10px}
 .lighting-single-colours-card #single-keys{width:100%;min-height:170px}
-.lighting-single-colours-card #single-color{width:100%;height:180px}
+.lighting-single-colours-card #single-color{width:100%;height:44px;padding:0;border:1px solid #303136;border-radius:10px;background:#202124;cursor:pointer}
+.lighting-single-colours-card #single-color::-webkit-color-swatch-wrapper{padding:2px}
+.lighting-single-colours-card #single-color::-webkit-color-swatch{border:0;border-radius:8px}
+.lighting-single-colours-card .controls~button,.lighting-single-colours-card .controls~button+button{display:inline-block;margin:12px 8px 0 0}
+.lighting-single-colours-card p{margin:12px 0 0}
 .lighting-single-brightness-card .lighting-section{border:0;background:transparent;padding:0;margin:0}
 .lighting-single-brightness-card .lighting-section h3{display:none}
 .single-service-controls{display:none!important}
