@@ -751,7 +751,11 @@ function drawKeyboard() {
     button.style.width=`${key.width/680*94}%`;
     button.setAttribute('aria-label',key.label||'Space');
     button.onclick=event=>{
-      if(busy||document.body.dataset.page==='home')return;
+      if(busy)return;
+      // On the Lighting page the interface bridge owns key selection (the page
+      // flag there is uiPage, not dataset.page) — do not process it twice.
+      if(typeof uiPage!=='undefined'&&uiPage==='lighting')return;
+      if(document.body.dataset.page==='home')return;
       collapseHeFields();
       if(document.body.dataset.page==='range'||multipleSelection||event.ctrlKey||event.metaKey){
         if(selectedIds.has(key.id)){if(selectedIds.size===1)return;selectedIds.delete(key.id);if(key.id===selectedId){selectedId=[...selectedIds][0];showSelected();}}

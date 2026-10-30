@@ -323,7 +323,12 @@ class BrowserAdapter {
   // configuration packet (INIT17). Verified on hardware 2026-10-30: per-key SINGLE
   // records persist either way, but they stay invisible until INIT17 follows them,
   // so the configuration is re-sent around the key records even when it is unchanged.
-  await this.device.send(configPayload(cfg));
+  // The firmware repaints the Single Light overlay only when a light-config
+  // packet differs from its current content (verified on hardware: identical
+  // packets are ignored, so a rewritten colour stays invisible). Cycle the
+  // layer flag off and back on around the per-key records to force the redraw.
+  const off=Buffer.from(cfg);off[6]=0;
+  await this.device.send(configPayload(off));
   for(const id of request.keys){
    const key=layout.find(k=>k.id===id);if(!key)throw Error('Unknown key');
    const o=(key.col*6+key.row)*10;
