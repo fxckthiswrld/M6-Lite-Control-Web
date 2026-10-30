@@ -1236,7 +1236,7 @@ document.querySelectorAll('aside .nav').forEach((nav,i)=>{
   // Route through the interface bridge so the page state (dataset.page/uiPage)
   // actually switches — the panel alone is not enough for key selection.
   if(window.m6UI?.navigate){window.m6UI.navigate('lighting');}
-  else{hePanel.hidden=true;advancedPanel.hidden=true;lightingPanel.hidden=false;document.body.dataset.page='lighting';lightingBrightness();}
+  else{hePanel.hidden=true;advancedPanel.hidden=true;lightingPanel.hidden=false;document.body.dataset.page='lighting';if(typeof uiPage!=='undefined')uiPage='lighting';lightingBrightness();}
   return;}
     hePanel.hidden=true;advancedPanel.hidden=true;pendingPanel.hidden=false;
     $('pending-title').textContent=nav.dataset.title;
@@ -1279,7 +1279,7 @@ hideAutoControls([
   'read','save-memory','save','apply',
   'lighting-read','lighting-apply','lighting-mode-apply','lighting-color-apply','lighting-speed-apply','lighting-direction-apply',
   'backlight-enabled-apply','underlight-read','underlight-apply','underlight-color-apply','underlight-speed-apply','underlight-brightness-apply','underlight-enabled-apply','underlight-sync-apply',
-  'single-read','single-apply','single-active-apply','single-brightness-apply',
+  'single-read','single-active-apply','single-brightness-apply',
   'remap-apply','layer-apply','media-apply','modify-apply','hotkey-apply','dks-apply','pair-apply','key-enabled-apply',
   'device-mode-apply','device-settings-read','device-highlight-apply','device-auto-calibration-apply','device-auto-light-off-apply','device-saturation-apply',
   'calibration-read'
