@@ -96,6 +96,7 @@ async function singleAction(kind,colorOverride){
    // The values are on the device now; drop the selection so the next pick starts clean.
    selectedIds=new Set();selectedId='';refreshSelection();
    const select=$('single-keys');for(const option of select.options)option.selected=false;select.dispatchEvent(new Event('change'));
+   if(typeof syncSingleKeyHighlights==='function')syncSingleKeyHighlights();
    $('single-status').textContent=kind==='color'?`Color ${color.toUpperCase()} applied to ${lastSingleKeys.length} key(s); the Single Light layer is on.`:kind==='disable'?`Single Light turned off for ${lastSingleKeys.length} key(s).`:`Single Light applied to ${lastSingleKeys.length} key(s); device readback verified.`;
   }}
  catch(error){const applied=appliedWithoutSave(error);if(!applied)singleReady=false;if(applied){try{await readSingleLight();}catch{}}$('single-status').textContent=error.message;}finally{setBusy(false);}
@@ -1297,6 +1298,9 @@ $('underlight-brightness').addEventListener('change',autoApply(()=>$('underlight
 $('underlight-enabled').addEventListener('change',autoApply(()=>$('underlight-enabled-apply').click(),80));
 $('single-active').addEventListener('change',autoApply(()=>$('single-active-apply').click(),80));
 $('single-color').addEventListener('change',event=>{const picked=event.target.value;autoApply(()=>singleAction('color',picked),250);});
+// The picker also fires input while dragging its sliders and when it is
+// dismissed by clicking elsewhere (change fires only on Enter/OK).
+$('single-color').addEventListener('input',event=>{const picked=event.target.value;autoApply(()=>singleAction('color',picked),450);});
 $('single-enabled').addEventListener('change',autoApply(()=>singleAction('enabled'),80));
 $('single-brightness').addEventListener('change',autoApply(()=>$('single-brightness-apply').click(),250));
 $('layer-target').addEventListener('change',autoApply(()=>$('layer-apply').click(),80));
