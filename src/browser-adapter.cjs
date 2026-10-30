@@ -297,6 +297,45 @@ class BrowserAdapter {
   async setUnderLightColor(request){const raw=await this.device.readInit(9),mode=request.mode??raw[0],m=underModes[mode];if(!m||![3,7].includes(mode)||mode!==raw[0]||!/^#[0-9a-f]{6}$/i.test(request.color))throw Error('Under Light custom color is available for active Normal or Breath only');if(mode===3)raw[m.offset]=request.customRgb?1:0;Buffer.from(request.color.slice(1),'hex').copy(raw,m.offset+1);await this.device.send(underPayload(raw,mode));return this.readUnderLight();}
   async setUnderLightSpeed(request){const raw=await this.device.readInit(9),mode=request.mode??raw[0],m=underModes[mode],range={3:[1500,3000],4:[5000,20000],5:[2000,6000],6:[2000,4000]}[mode];if(!m||!range||mode!==raw[0]||!Number.isInteger(request.speed)||request.speed<range[0]||request.speed>range[1])throw Error('Invalid Under Light speed');raw.writeUInt16LE(request.speed,m.offset+4);const payload=underPayload(raw,mode);for(let attempt=0;attempt<3;attempt++){await this.device.send(payload);if(attempt<2)await new Promise(resolve=>setTimeout(resolve,25));}return this.readUnderLight();}
   async readSingleLight(){const raw=await this.device.readInit(7),config=await this.device.readInit(17);return {enabled:config[6]===1,canEnable:[0,1].includes(config[6]),keys:layout.map(k=>{const o=(k.col*6+k.row)*10;return {id:k.id,label:k.label,enabled:raw[o]===1,mode:raw[o+1],brightness:raw[o+2],color:'#'+raw.subarray(o+3,o+6).toString('hex').toUpperCase(),canEdit:[0,1].includes(raw[o])&&raw[o+1]===1};})};}
-  async setSingleLight(request){const raw=await this.device.readInit(7);if(Object.hasOwn(request,'mode'))throw Error('Single Light supports RGB and brightness editing only');if(Object.hasOwn(request,'active')){if(typeof request.active!=='boolean')throw Error('active must be a boolean');const cfg=await this.device.readInit(17);if(![0,1].includes(cfg[6]))throw Error('Unknown Single Light enable state');cfg[6]=request.active?1:0;await this.device.send(configPayload(cfg));}else{if(!Array.isArray(request.keys)||!request.keys.length||new Set(request.keys).size!==request.keys.length)throw Error('Select unique keys');if(!['enabled','color','brightness'].some(field=>Object.hasOwn(request,field)))throw Error('Expected RGB, brightness or key enable state');if(Object.hasOwn(request,'enabled')&&typeof request.enabled!=='boolean')throw Error('enabled must be a boolean');if(Object.hasOwn(request,'color')&&(typeof request.color!=='string'||!/^#[0-9a-f]{6}$/i.test(request.color)))throw Error('Expected #RRGGBB color');if(Object.hasOwn(request,'brightness')&&(!Number.isInteger(request.brightness)||request.brightness<0||request.brightness>255))throw Error('Brightness must be an integer from 0 to 255');for(const id of request.keys){const key=layout.find(k=>k.id===id);if(!key)throw Error('Unknown key');const o=(key.col*6+key.row)*10;if((raw[o]!==0&&raw[o]!==1)||raw[o+1]!==1)throw Error('Only Normal Single Light records can currently be edited safely');const p=Buffer.alloc(20);p.set([8,8,1,key.col,key.row]);raw.copy(p,5,o,o+6);if(Object.hasOwn(request,'enabled'))p[5]=request.enabled?1:0;if(Object.hasOwn(request,'brightness'))p[7]=request.brightness;if(Object.hasOwn(request,'color'))Buffer.from(request.color.slice(1),'hex').copy(p,8);await this.device.send(p);}}return this.readSingleLight();}
+ async setSingleLight(request){
+  const raw=await this.device.readInit(7);
+  if(Object.hasOwn(request,'mode'))throw Error('Single Light supports RGB and brightness editing only');
+  if(Object.hasOwn(request,'active')){
+   if(typeof request.active!=='boolean')throw Error('active must be a boolean');
+   const cfg=await this.device.readInit(17);
+   if(![0,1].includes(cfg[6]))throw Error('Unknown Single Light enable state');
+   cfg[6]=request.active?1:0;
+   await this.device.send(configPayload(cfg));
+   return this.readSingleLight();
+  }
+  if(!Array.isArray(request.keys)||!request.keys.length||new Set(request.keys).size!==request.keys.length)throw Error('Select unique keys');
+  if(!['enabled','color','brightness'].some(field=>Object.hasOwn(request,field)))throw Error('Expected RGB, brightness or key enable state');
+  if(Object.hasOwn(request,'enabled')&&typeof request.enabled!=='boolean')throw Error('enabled must be a boolean');
+  if(Object.hasOwn(request,'color')&&(typeof request.color!=='string'||!/^#[0-9a-f]{6}$/i.test(request.color)))throw Error('Expected #RRGGBB color');
+  if(Object.hasOwn(request,'brightness')&&(!Number.isInteger(request.brightness)||request.brightness<0||request.brightness>255))throw Error('Brightness must be an integer from 0 to 255');
+  // Assigning a color activates the key and the Single Light layer, otherwise the stored RGB would never be
+  // displayed (the vendor firmware only lights records whose actived byte is 1). An explicit enabled flag wins.
+  const activates=Object.hasOwn(request,'enabled')?request.enabled===true:Object.hasOwn(request,'color');
+  const cfg=await this.device.readInit(17);
+  if(![0,1].includes(cfg[6]))throw Error('Unknown Single Light enable state');
+  if(activates)cfg[6]=1;
+  // The keyboard only redraws the Single Light overlay once it receives a light
+  // configuration packet (INIT17). Verified on hardware 2026-10-30: per-key SINGLE
+  // records persist either way, but they stay invisible until INIT17 follows them,
+  // so the configuration is re-sent around the key records even when it is unchanged.
+  await this.device.send(configPayload(cfg));
+  for(const id of request.keys){
+   const key=layout.find(k=>k.id===id);if(!key)throw Error('Unknown key');
+   const o=(key.col*6+key.row)*10;
+   if((raw[o]!==0&&raw[o]!==1)||raw[o+1]!==1)throw Error('Only Normal Single Light records can currently be edited safely');
+   const p=Buffer.alloc(20);p.set([8,8,1,key.col,key.row]);raw.copy(p,5,o,o+6);
+   if(Object.hasOwn(request,'enabled'))p[5]=request.enabled?1:0;else if(Object.hasOwn(request,'color'))p[5]=1;
+   if(Object.hasOwn(request,'brightness'))p[7]=request.brightness;
+   if(Object.hasOwn(request,'color'))Buffer.from(request.color.slice(1),'hex').copy(p,8);
+   await this.device.send(p);
+  }
+  await this.device.send(configPayload(cfg));
+  return this.readSingleLight();
+ }
 }
 module.exports={BrowserAdapter,BrowserDevice,layout};

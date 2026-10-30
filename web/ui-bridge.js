@@ -246,6 +246,7 @@ for(const [name,nodes] of Object.entries(lightingGroups)){const wrapper=document
   const controls=single.querySelector('#single-keys')?.closest('.controls');
   const read=single.querySelector('#single-read');
   const apply=single.querySelector('#single-apply');
+  const disable=single.querySelector('#single-disable');
   const status=single.querySelector('#single-status');
   const note=status?.nextElementSibling;
   const enabledLabel=single.querySelector('#single-enabled')?.closest('label');
@@ -257,7 +258,7 @@ for(const [name,nodes] of Object.entries(lightingGroups)){const wrapper=document
    const content=document.createElement('div');content.className='lighting-single-content';
    const colours=document.createElement('section');colours.className='lighting-single-colours-card';colours.innerHTML='<h3>Colors</h3>';
    const brightness=document.createElement('section');brightness.className='lighting-single-brightness-card';brightness.innerHTML='<h3>Brightness</h3>';
-   [controls,read,apply,status,note].filter(Boolean).forEach(node=>colours.append(node));
+   [controls,read,apply,disable,status,note].filter(Boolean).forEach(node=>colours.append(node));
    const brightnessTitle=brightnessSection.querySelector('h3');if(brightnessTitle)brightnessTitle.hidden=true;
    brightness.append(brightnessSection);
    const service=document.createElement('div');service.className='single-service-controls';service.hidden=true;service.setAttribute('aria-hidden','true');

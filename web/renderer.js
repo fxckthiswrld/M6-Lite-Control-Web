@@ -60,11 +60,15 @@ lightingPanel.insertAdjacentHTML('beforeend','<div class="lighting-section"><h3>
 lightingPanel.insertAdjacentHTML('beforeend','<div class="lighting-section"><h3>Under Light brightness</h3><label class="range-control"><input id="underlight-brightness" type="range" min="0" max="100" step="1" disabled><output id="underlight-brightness-value">â€”</output></label><button id="underlight-brightness-apply" disabled>Apply Under Light brightness</button></div>');
 lightingPanel.insertAdjacentHTML('beforeend','<h3>Under Light power</h3><label><input id="underlight-enabled" type="checkbox" disabled> Enable Under Light</label><button id="underlight-enabled-apply" disabled>Apply Under Light power</button>');
 lightingPanel.insertAdjacentHTML('beforeend','<h3>Under Light synchronization</h3><label><input id="underlight-sync" type="checkbox" disabled> Normal Sync</label><button id="underlight-sync-apply" disabled>Apply Normal Sync</button><p id="underlight-sync-note">Disable Normal Sync to edit independent Under Light effects.</p>');
-lightingPanel.insertAdjacentHTML('beforeend','<hr><h2>Single Light</h2><label><input id="single-active" type="checkbox" disabled> Enable Single Light layer</label><button id="single-active-apply" disabled>Apply layer</button><div class="controls"><label>Keys (click one or more to select)<select id="single-keys" multiple size="8" disabled></select></label><label><input id="single-enabled" type="checkbox" disabled> Override Back Light for selected keys</label><label>Color<input id="single-color" type="color" disabled></label></div><button id="single-read">Refresh Single Light</button><button id="single-apply" disabled>Apply to selected keys</button><p id="single-status" role="status">Read Single Light from the keyboard.</p><p>Colors override Back Light only for enabled keys while this layer is enabled. Changes are saved to device memory automatically.</p>');
+lightingPanel.insertAdjacentHTML('beforeend','<hr><h2>Single Light</h2><label><input id="single-active" type="checkbox" disabled> Enable Single Light layer</label><button id="single-active-apply" disabled>Apply layer</button><div class="controls"><label>Keys (follows the selection on the keyboard)<select id="single-keys" multiple size="8" disabled></select></label><label><input id="single-enabled" type="checkbox" disabled> Use Single Light color for selected keys</label><label>Color<input id="single-color" type="color" disabled></label></div><button id="single-read">Refresh Single Light</button><button id="single-apply" disabled>Apply color to selected keys</button><button id="single-disable" disabled>Turn off Single Light for selected keys</button><p id="single-status" role="status">Read Single Light from the keyboard.</p><p>Picking a color turns the selected keys and the Single Light layer on automatically. Use Turn off to remove the color from selected keys. Changes are saved to device memory automatically.</p>');
 $('single-apply').insertAdjacentHTML('afterend','<div class="lighting-section"><h3>Selected keys brightness</h3><label class="range-control"><input id="single-brightness" type="range" min="0" max="100" step="1" disabled><output id="single-brightness-value">-</output></label><button id="single-brightness-apply" disabled>Apply brightness to selected keys</button><p>Brightness preserves each selected key&rsquo;s RGB color. Applying a color preserves its brightness.</p></div>');
 let singleState=null,singleReady=false,singleBrightnessRaw=0;
-function showSingleSelection(){
- const ids=Array.from($('single-keys').selectedOptions,o=>o.value),keys=singleState?.keys.filter(k=>ids.includes(k.id))||[];
+function showSingleSelection(pushSelection){
+ const ids=Array.from($('single-keys').selectedOptions,o=>o.value);
+ // The Single Light list and the keyboard picture share one selection, so a change
+ // in either view updates both and the color request can never use a stale set.
+ if(pushSelection&&ids.length){selectedIds=new Set(ids);selectedId=ids[ids.length-1];refreshSelection();}
+ const keys=singleState?.keys.filter(k=>ids.includes(k.id))||[];
  if(keys.length){$('single-color').value=keys[0].color;$('single-enabled').checked=keys[0].enabled;singleBrightnessRaw=keys[0].brightness;$('single-brightness').value=Math.round(singleBrightnessRaw*100/255);updateLightingSlider('single-brightness','single-brightness-value');}
  $('single-status').textContent=keys.length?`${keys.length} key(s) selected. ${keys.some(k=>k.color!==keys[0].color||k.enabled!==keys[0].enabled||k.brightness!==keys[0].brightness)?'Mixed values; each control writes only its displayed setting.':'Saved values shown.'}`:'Click keys on the keyboard to select one or more.';
  updateLightingControls();
@@ -79,13 +83,13 @@ async function readSingleLight(){
 }
 async function singleAction(kind){
  if(busy||(kind!=='read'&&!singleReady))return;
- const keys=Array.from($('single-keys').selectedOptions,o=>o.value);
- const request=kind==='layer'?{active:$('single-active').checked}:kind==='brightness'?{keys,brightness:singleBrightnessRaw}:{keys,enabled:$('single-enabled').checked,color:$('single-color').value};
+ const listed=Array.from($('single-keys').selectedOptions,o=>o.value),keys=listed.length?listed:[...selectedIds];
+ const request=(kind==='keys'||kind==='color')?{keys,color:$('single-color').value}:kind==='enabled'?{keys,enabled:$('single-enabled').checked}:kind==='disable'?{keys,enabled:false}:kind==='layer'?{active:$('single-active').checked}:{keys,brightness:singleBrightnessRaw};
  setBusy(true);
- try{if(kind!=='read'){const reply=await window.keyboard.setSingleLight(request);if(!reply.ok)throw Error(reply.error);}await readSingleLight();if(kind!=='read')$('single-status').textContent='Single Light applied; device readback verified. Saved to device memory automatically.';}
+ try{if(kind!=='read'){const reply=await window.keyboard.setSingleLight(request);if(!reply.ok)throw Error(reply.error);}await readSingleLight();if(kind!=='read')$('single-status').textContent=kind==='color'?'Color applied; the selected keys and the Single Light layer are on. Saved to device memory automatically.':kind==='disable'?'Single Light turned off for the selected keys. Saved to device memory automatically.':'Single Light applied; device readback verified. Saved to device memory automatically.';}
  catch(error){const applied=appliedWithoutSave(error);if(!applied)singleReady=false;if(applied){try{await readSingleLight();}catch{}}$('single-status').textContent=error.message;}finally{setBusy(false);}
 }
-$('single-keys').onchange=showSingleSelection;$('single-read').onclick=()=>singleAction('read');$('single-apply').onclick=()=>singleAction('keys');$('single-active-apply').onclick=()=>singleAction('layer');
+$('single-keys').onchange=()=>showSingleSelection(true);$('single-read').onclick=()=>singleAction('read');$('single-apply').onclick=()=>singleAction('color');$('single-disable').onclick=()=>singleAction('disable');$('single-active-apply').onclick=()=>singleAction('layer');
 $('single-brightness').oninput=()=>{singleBrightnessRaw=Math.round($('single-brightness').valueAsNumber*255/100);updateLightingSlider('single-brightness','single-brightness-value');};
 $('single-brightness-apply').onclick=()=>singleAction('brightness');
 let lightingBrightnessReady=false,lightingModeReady=false,lightingState=null,lightingSavedBrightness=null,underLightState=null,underLightReady=false,lightingCustomRgbPending=false,underCustomRgbPending=false,lightingSpeedDraft=null,underSpeedDraft=null;
@@ -111,7 +115,7 @@ function updateLightingControls(){
  $('backlight-enabled').disabled=busy||!backPowerReady;$('backlight-enabled-apply').disabled=busy||!backPowerReady;
  const singleIds=Array.from($('single-keys').selectedOptions,o=>o.value),editable=singleReady&&singleIds.length>0&&singleIds.every(id=>singleState.keys.find(k=>k.id===id)?.canEdit);
  $('single-keys').disabled=busy||!singleReady;
- for(const id of ['single-apply','single-enabled','single-color','single-brightness','single-brightness-apply'])$(id).disabled=busy||!editable;
+ for(const id of ['single-apply','single-disable','single-enabled','single-color','single-brightness','single-brightness-apply'])$(id).disabled=busy||!editable;
  for(const id of ['single-active','single-active-apply'])$(id).disabled=busy||!singleReady||!singleState?.canEnable;
  const syncReady=underLightReady&&underLightState?.canEditSync;
  $('underlight-sync').disabled=busy||!syncReady;$('underlight-sync-apply').disabled=busy||!syncReady;
@@ -590,9 +594,18 @@ function refreshSelection(){
   const selectable=document.body.dataset.page!=='home';
   document.querySelectorAll('.key').forEach(b=>{const selected=selectable&&selectedIds.has(b.dataset.id);b.classList.toggle('chosen',selected);b.setAttribute('aria-pressed',String(selected));});
   $('selection-summary').textContent=`${selectedIds.size} switch${selectedIds.size===1?'':'es'} selected`;
+  syncSingleSelection();
   updateSelectedCalibrationButton();
   $('save').textContent=selectedIds.size>1?`Apply (${selectedIds.size} keys)`:'Apply';
   $('save').title='Apply the displayed mode and its values to the selected switches';
+}
+// Keeps the Single Light key list in step with the keyboard selection so that a
+// color picked for the highlighted switches applies to exactly those switches.
+function syncSingleSelection(){
+  const select=$('single-keys');if(!singleReady||!select.options.length)return;
+  let changed=false;
+  for(const option of select.options){const wanted=selectedIds.has(option.value);if(option.selected!==wanted){option.selected=wanted;changed=true;}}
+  if(changed)showSingleSelection();
 }
 $('select-multiple').onclick=()=>{multipleSelection=!multipleSelection;$('select-multiple').setAttribute('aria-pressed',String(multipleSelection));};
 $('select-all-keys').onclick=()=>{if(busy||!profile)return;selectedIds=new Set(profile.layout.map(k=>k.id));selectedId=[...selectedIds][0];refreshSelection();collapseHeFields();};
@@ -807,6 +820,18 @@ function updateLightingPreview(){
     key.style.setProperty('--star-accent',['#ff4dc4','#4dff88','#4dd2ff','#ffb84d'][starSeed%4]);
     key.style.setProperty('--preview-delay',`${(-((starSeed%13)/13*duration)).toFixed(3)}s`);
    }
+  }
+ }
+ const singleRecords=singleState?.enabled?singleState.keys.filter(key=>key.enabled):[];
+ if(singleRecords.length){
+  const byId=new Map(keys.map(key=>[key.dataset.id,key]));
+  for(const record of singleRecords){
+   const key=byId.get(record.id);if(!key)continue;
+   key.classList.add('key-preview','key-preview-single');
+   key.style.setProperty('--preview-color',record.color);
+   key.style.setProperty('--preview-brightness',String(Math.max(0,Math.min(1,Number(record.brightness)/255))));
+   key.style.setProperty('--preview-duration','0s');
+   key.style.setProperty('--preview-delay','0s');
   }
  }
  const underState=underLightState;
@@ -1248,8 +1273,8 @@ $('underlight-speed').addEventListener('change',autoApply(()=>$('underlight-spee
 $('underlight-brightness').addEventListener('change',autoApply(()=>$('underlight-brightness-apply').click(),250));
 $('underlight-enabled').addEventListener('change',autoApply(()=>$('underlight-enabled-apply').click(),80));
 $('single-active').addEventListener('change',autoApply(()=>$('single-active-apply').click(),80));
-$('single-color').addEventListener('change',autoApply(()=>$('single-apply').click(),250));
-$('single-enabled').addEventListener('change',autoApply(()=>$('single-apply').click(),80));
+$('single-color').addEventListener('change',autoApply(()=>singleAction('color'),250));
+$('single-enabled').addEventListener('change',autoApply(()=>singleAction('enabled'),80));
 $('single-brightness').addEventListener('change',autoApply(()=>$('single-brightness-apply').click(),250));
 $('layer-target').addEventListener('change',autoApply(()=>$('layer-apply').click(),80));
 $('media-action').addEventListener('change',autoApply(()=>$('media-apply').click(),80));

@@ -260,7 +260,12 @@ test('Single Light brightness writes preserve each selected RGB and override fla
   const result = await adapter.setSingleLight({ keys: ['2:1', '2:2'], brightness: 128 });
   const expected = Buffer.from(before); expected[82] = 128; expected[142] = 128;
   assert.deepEqual(sections.get(7), expected);
-  assert.equal(writes.length, 2);
+  // INIT17 is re-sent around the key records so the overlay is redrawn on the device.
+  assert.equal(writes.length, 4);
+  assert.equal(writes[0][1], 17);
+  assert.equal(writes[1][1], 8);
+  assert.equal(writes[2][1], 8);
+  assert.equal(writes[3][1], 17);
   assert.equal(result.keys.find(key => key.id === '2:1').brightness, 128);
 });
 
@@ -275,6 +280,37 @@ test('Single Light color-only and enable-only writes preserve stored brightness'
   await adapter.setSingleLight({ keys: ['2:1'], enabled: false });
   assert.equal(sections.get(7)[80], 0);
   assert.equal(sections.get(7)[82], 73);
+});
+
+test('Single Light color assignment activates the key and enables the layer', async () => {
+  const { sections, device } = singleFixture();
+  const adapter = new BrowserAdapter();
+  adapter.device = device;
+  assert.equal(sections.get(7)[80], 0);
+  assert.equal(sections.get(17)[6], 0);
+  const result = await adapter.setSingleLight({ keys: ['2:1'], color: '#112233' });
+  assert.equal(sections.get(7)[80], 1);
+  assert.equal(sections.get(17)[6], 1);
+  assert.equal(result.enabled, true);
+  assert.equal(result.keys.find(key => key.id === '2:1').enabled, true);
+});
+
+test('Explicit Single Light disable keeps a colored key off and the layer untouched', async () => {
+  const { sections, device } = singleFixture();
+  const adapter = new BrowserAdapter();
+  adapter.device = device;
+  await adapter.setSingleLight({ keys: ['2:1'], enabled: false, color: '#112233' });
+  assert.equal(sections.get(7)[80], 0);
+  assert.equal(sections.get(17)[6], 0);
+});
+
+test('Single Light brightness edits do not activate a key or the layer', async () => {
+  const { sections, device } = singleFixture();
+  const adapter = new BrowserAdapter();
+  adapter.device = device;
+  await adapter.setSingleLight({ keys: ['2:1'], brightness: 128 });
+  assert.equal(sections.get(7)[80], 0);
+  assert.equal(sections.get(17)[6], 0);
 });
 
 test('Single Light rejects effect requests and invalid brightness before writing', async () => {
