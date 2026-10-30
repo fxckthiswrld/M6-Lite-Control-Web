@@ -1,70 +1,72 @@
 ﻿# M6 Lite Control Web
 
-Веб-версия приложения управления клавиатурой MMStudio M6 Lite+ (Hall Effect). Работает в браузере через WebHID — без установки, с теми же возможностями, что и настольная версия на Electron (репозиторий [M6-Lite-Control](https://github.com/fxckthiswrld/M6-Lite-Control)).
+> 🇷🇺 Русская версия: [README.ru.md](README.ru.md)
 
-## Возможности
+Browser version of the MMStudio M6 Lite+ (Hall Effect) keyboard control software. Runs in the browser over WebHID — no installation, with the same feature set as the Electron desktop app ([M6-Lite-Control](https://github.com/fxckthiswrld/M6-Lite-Control)).
 
-- **Hall Effect** — точка срабатывания и Rapid Trigger для отдельных клавиш, групп и профиля целиком (M1/M2), экспорт и импорт профиля в JSON.
-- **Программирование** — Remap, Media, HotKey, Modify, Layer, DKS, Snap Tap / SOCD, сброс клавиш.
-- **Калибровка** — чтение диапазонов, полная калибровка и по выбранным клавишам, живой прогресс.
-- **Подсветка**
-  - Back Light — эффекты (Normal, Breath, Gradient, Stream, Star, Roll), скорость, направление, свой цвет;
-  - Under Light — эффекты, яркость, цвет, синхронизация;
-  - **Single Light** — свой цвет и яркость для отдельных клавиш и групп: кликните клавиши на макете, выберите цвет, нажмите **Apply**.
-- **Настройки устройства** — режимы производительности, Highlight, авто-калибровка, автоотключение подсветки (1–30 минут), Saturation R/G/B.
-- Тестер клавиш и сохранение дампа памяти устройства.
+## Features
 
-## Требования
+- **Hall Effect** — actuation point and Rapid Trigger per switch, for groups and the whole profile (M1/M2), profile export/import as JSON.
+- **Programming** — Remap, Media, HotKey, Modify, Layer, DKS, Snap Tap / SOCD, key resets.
+- **Calibration** — range readback, full-key and selected-key calibration, live progress.
+- **Lighting**
+  - Back Light — effects (Normal, Breath, Gradient, Stream, Star, Roll), speed, direction, custom colour;
+  - Under Light — effects, brightness, colour, sync;
+  - **Single Light** — custom colour and brightness for individual keys and groups: click keys on the layout, pick a colour, press **Apply**.
+- **Device settings** — performance modes, Highlight, firmware auto calibration, auto light off (1–30 minutes), Saturation R/G/B.
+- Keyboard tester and device memory dump saving.
 
-- Windows и браузер на Chromium с поддержкой WebHID: **Chrome** или **Edge** (Firefox и Safari не поддерживаются).
-- Node.js 20+ для запуска локального сервера.
-- Клавиатура M6 Lite+, подключённая по USB напрямую (без хабов и удлинителей).
+## Requirements
 
-## Запуск
+- Windows and a Chromium-based browser with WebHID: **Chrome** or **Edge** (Firefox and Safari are not supported).
+- Node.js 20+ for the local server.
+- An M6 Lite+ keyboard connected over USB directly (no hubs or extension cables).
+
+## Running
 
 ```bash
 npm install
 npm start
 ```
 
-Откройте `http://localhost:4173`, нажмите **Connect keyboard** и выберите M6 Lite+ в списке браузера. WebHID работает на `localhost` без HTTPS; для размещения на внешнем домене нужен HTTPS.
+Open `http://localhost:4173`, press **Connect keyboard** and pick the M6 Lite+ in the browser prompt. WebHID works on `localhost` without HTTPS; hosting on a public domain requires HTTPS.
 
-Порт можно изменить переменной окружения `PORT`.
+The port can be changed with the `PORT` environment variable.
 
-## Как пользоваться Single Light
+## Using Single Light
 
-1. Откройте **Lighting Effect → Single**.
-2. Кликайте клавиши на макете — они подсвечиваются (можно выбрать группу).
-3. Выберите цвет в пикере (ползунок, палитра — как удобно) и нажмите **Apply color to selected keys**. Слой Single включается автоматически, выделение снимается после применения.
-4. **Turn off Single Light for selected keys** — выключает Single Light для выбранных клавиш.
+1. Open **Lighting Effect → Single**.
+2. Click keys on the layout to select them (multiple keys are supported).
+3. Pick a colour in the picker (slider, palette — whatever is convenient) and press **Apply color to selected keys**. The Single Light layer switches on automatically and the selection clears after applying.
+4. **Turn off Single Light for selected keys** disables Single Light for the chosen keys.
 
-Выбранный в пикере цвет сохраняется при повторных кликах по клавишам; применение можно повторять для разных групп.
+The colour you picked stays in the picker when you re-select keys; you can repeat the apply for different groups.
 
-## Важно знать
+## Good to know
 
-- Перед изменениями приложение читает текущее состояние всех секций и проверяет запись обратным чтением; при ошибке исходные значения восстанавливаются.
-- Предупреждение `Saving to device memory did not confirm: SAVE_END` означает, что сохранить настройки в энергонезависимую память не удалось — применённый цвет работает до отключения USB. Это ограничение прошивки, на применение цвета оно не влияет.
-- Во время работы веб-версии закройте настольное приложение: одновременный доступ двух программ к клавиатуре может мешать подтверждениям записи.
-- EQ-режим подсветки в веб-версии отсутствует (только в настольной).
+- Before changing anything the app reads the full device state and verifies every write by readback; on failure the original values are restored.
+- A `Saving to device memory did not confirm: SAVE_END` warning means the keyboard did not acknowledge the persistence write — the applied colour works until USB disconnect. This is a firmware limitation and does not affect applying colours.
+- Close the desktop app while using the browser version: two programs talking to the keyboard at once can interfere with write acknowledgements.
+- EQ lighting is desktop-only.
 
-## Структура проекта
+## Project layout
 
 ```
-src/   — логика протокола (browser-adapter.cjs и модули: HE, программирование, калибровка, подсветка, память)
-web/   — интерфейс и сервер (server.mjs, renderer.js, ui-bridge.js, собранный бандл browser-backend.js)
+src/   — protocol logic (browser-adapter.cjs and modules: HE, programming, calibration, lighting, device memory)
+web/   — UI and server (server.mjs, renderer.js, ui-bridge.js, bundled browser-backend.js)
 ```
 
-Сервер (`web/server.mjs`) просто раздаёт статику — вся работа с устройством идёт в браузере через WebHID.
+The server (`web/server.mjs`) only serves static files — all device work happens in the browser over WebHID.
 
-## Разработка и тесты
+## Development and tests
 
 ```bash
-npm test        # 45 тестов протокола и логики
-npm run build:browser   # пересборка web/browser-backend.js после изменений в src/
+npm test                # 45 protocol and logic tests
+npm run build:browser   # rebuild web/browser-backend.js after changing src/
 ```
 
-После изменений в `web/*.js` пересборка не нужна — файлы отдаются с диска, достаточно обновить страницу.
+Changes to `web/*.js` need no build step — files are served from disk, just refresh the page.
 
-## Связь с настольной версией
+## Related
 
-Протокол и логика общие. Исправления сначала проверяются на железе в настольной версии, затем переносятся сюда. Ридми основной версии доступно там же; русская версия — [README.ru.md](https://github.com/fxckthiswrld/M6-Lite-Control/blob/master/README.ru.md).
+Desktop (Electron) version and shared protocol notes: [M6-Lite-Control](https://github.com/fxckthiswrld/M6-Lite-Control).
