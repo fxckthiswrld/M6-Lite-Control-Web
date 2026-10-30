@@ -72,8 +72,8 @@ function showSingleSelection(pushSelection){
  // in either view updates both and the color request can never use a stale set.
  if(pushSelection&&ids.length){selectedIds=new Set(ids);selectedId=ids[ids.length-1];refreshSelection();}
  const keys=singleState?.keys.filter(k=>ids.includes(k.id))||[];
- if(keys.length){$('single-color').value=keys[0].color;$('single-enabled').checked=keys[0].enabled;singleBrightnessRaw=keys[0].brightness;$('single-brightness').value=Math.round(singleBrightnessRaw*100/255);updateLightingSlider('single-brightness','single-brightness-value');}
- $('single-status').textContent=keys.length?`${keys.length} key(s) selected. ${keys.some(k=>k.color!==keys[0].color||k.enabled!==keys[0].enabled||k.brightness!==keys[0].brightness)?'Mixed values; each control writes only its displayed setting.':'Saved values shown.'}`:'Click keys on the keyboard to select one or more.';
+ if(keys.length){$('single-enabled').checked=keys[0].enabled;singleBrightnessRaw=keys[0].brightness;$('single-brightness').value=Math.round(singleBrightnessRaw*100/255);updateLightingSlider('single-brightness','single-brightness-value');}
+ $('single-status').textContent=keys.length?`${keys.length} key(s) selected. Stored colour of ${keys[0].label}: ${keys[0].color}. ${keys.some(k=>k.color!==keys[0].color||k.enabled!==keys[0].enabled||k.brightness!==keys[0].brightness)?'Mixed values; each control writes only its displayed setting.':'Saved values shown.'}`:'Click keys on the keyboard to select one or more.';
  updateLightingControls();
 }
 async function readSingleLight(){

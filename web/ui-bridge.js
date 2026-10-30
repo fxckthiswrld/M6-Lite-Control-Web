@@ -337,6 +337,9 @@ document.addEventListener('pointerdown',event=>{
  if(busy||event.button!==0)return;
  if(event.target.closest('button,.key,input,select,textarea,label,a,[role=button],[role=tab]'))return;
  if(event.target.closest('#keyboard,.keyboard'))return;
+ // On the Lighting page the selection must survive clicks elsewhere: it is the
+ // apply target until the user changes it (it clears after a successful apply).
+ if(uiPage==='lighting')return;
  clearKeyboardSelection();
 });
 window.m6UI={navigate:navigateUI,lightingTab,programmingTab,refresh:async()=>{if(busy)return;await loadProfile(layer);const page=document.body.dataset.page;if(page==='lighting')lightingBrightness().catch(()=>{});else if(page==='settings')deviceSettingsAction();else if(page==='calibration')refreshCalibration(true).catch(()=>{});},snapshot:()=>({busy,connected:!!profile,layer,selectedLabel:profile?.layout.find(k=>k.id===selectedId)?.label||'Select a key',page:uiPage,back:lightingState,under:underLightState,single:singleState,brightness:lightingSavedBrightness})};
