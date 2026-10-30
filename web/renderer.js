@@ -1231,7 +1231,12 @@ document.querySelectorAll('aside .nav').forEach((nav,i)=>{
     if(i===2){hePanel.hidden=true;advancedPanel.hidden=true;pendingPanel.hidden=true;remapPanel.hidden=false;fillRemap();fillLayer();fillMedia();fillModify();remapPanel.scrollIntoView({behavior:'smooth'});return;}
     if(i===3){hePanel.hidden=true;advancedPanel.hidden=false;fillHotKey();showPairState();showDksState();advancedPanel.scrollIntoView({behavior:'smooth'});return;}
     if(i===6){hePanel.hidden=true;advancedPanel.hidden=true;settingsPanel.hidden=false;deviceSettingsAction();return;}
-    if(i===5){hePanel.hidden=true;advancedPanel.hidden=true;lightingPanel.hidden=false;lightingBrightness();return;}
+    if(i===5){
+  // Route through the interface bridge so the page state (dataset.page/uiPage)
+  // actually switches — the panel alone is not enough for key selection.
+  if(window.m6UI?.navigate){window.m6UI.navigate('lighting');}
+  else{hePanel.hidden=true;advancedPanel.hidden=true;lightingPanel.hidden=false;document.body.dataset.page='lighting';lightingBrightness();}
+  return;}
     hePanel.hidden=true;advancedPanel.hidden=true;pendingPanel.hidden=false;
     $('pending-title').textContent=nav.dataset.title;
   };

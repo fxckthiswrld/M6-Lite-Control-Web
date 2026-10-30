@@ -328,7 +328,7 @@ class BrowserAdapter {
   // packets are ignored, so a rewritten colour stays invisible). Cycle the
   // layer flag off and back on around the per-key records to force the redraw.
   const off=Buffer.from(cfg);off[6]=0;
-  await this.device.send(configPayload(off));
+  await this.device.send(configPayload(off));await new Promise(resolve=>setTimeout(resolve,25));
   for(const id of request.keys){
    const key=layout.find(k=>k.id===id);if(!key)throw Error('Unknown key');
    const o=(key.col*6+key.row)*10;
@@ -337,9 +337,9 @@ class BrowserAdapter {
    if(Object.hasOwn(request,'enabled'))p[5]=request.enabled?1:0;else if(Object.hasOwn(request,'color'))p[5]=1;
    if(Object.hasOwn(request,'brightness'))p[7]=request.brightness;
    if(Object.hasOwn(request,'color'))Buffer.from(request.color.slice(1),'hex').copy(p,8);
-   await this.device.send(p);
+   await this.device.send(p);await new Promise(resolve=>setTimeout(resolve,15));
   }
-  await this.device.send(configPayload(cfg));
+  await this.device.send(configPayload(cfg));await new Promise(resolve=>setTimeout(resolve,25));
   return this.readSingleLight();
  }
 }
