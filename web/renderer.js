@@ -62,7 +62,10 @@ lightingPanel.insertAdjacentHTML('beforeend','<h3>Under Light power</h3><label><
 lightingPanel.insertAdjacentHTML('beforeend','<h3>Under Light synchronization</h3><label><input id="underlight-sync" type="checkbox" disabled> Normal Sync</label><button id="underlight-sync-apply" disabled>Apply Normal Sync</button><p id="underlight-sync-note">Disable Normal Sync to edit independent Under Light effects.</p>');
 lightingPanel.insertAdjacentHTML('beforeend','<hr><h2>Single Light</h2><label><input id="single-active" type="checkbox" disabled> Enable Single Light layer</label><button id="single-active-apply" disabled>Apply layer</button><div class="controls"><label>Keys (follows the selection on the keyboard)<select id="single-keys" multiple size="8" disabled></select></label><label><input id="single-enabled" type="checkbox" disabled> Use Single Light color for selected keys</label><label>Color<input id="single-color" type="color" disabled></label></div><button id="single-read">Refresh Single Light</button><button id="single-apply" disabled>Apply color to selected keys</button><button id="single-disable" disabled>Turn off Single Light for selected keys</button><p id="single-status" role="status">Read Single Light from the keyboard.</p><p>Picking a color turns the selected keys and the Single Light layer on automatically. Use Turn off to remove the color from selected keys. Changes are saved to device memory automatically.</p>');
 $('single-apply').insertAdjacentHTML('afterend','<div class="lighting-section"><h3>Selected keys brightness</h3><label class="range-control"><input id="single-brightness" type="range" min="0" max="100" step="1" disabled><output id="single-brightness-value">-</output></label><button id="single-brightness-apply" disabled>Apply brightness to selected keys</button><p>Brightness preserves each selected key&rsquo;s RGB color. Applying a color preserves its brightness.</p></div>');
-let singleState=null,singleReady=false,singleBrightnessRaw=0;
+let singleState=null,singleReady=false,singleBrightnessRaw=0,lastSingleKeys=[];
+// Keys used by the previous successful apply. They keep colour changes working
+// after the selection is cleared, so a new pick never silently does nothing.
+function resolveSingleKeys(){const listed=Array.from($('single-keys').selectedOptions,o=>o.value);return listed.length?listed:(selectedIds.size?[...selectedIds]:lastSingleKeys.slice());}
 function showSingleSelection(pushSelection){
  const ids=Array.from($('single-keys').selectedOptions,o=>o.value);
  // The Single Light list and the keyboard picture share one selection, so a change
@@ -83,11 +86,17 @@ async function readSingleLight(){
 }
 async function singleAction(kind){
  if(busy||(kind!=='read'&&!singleReady))return;
- const listed=Array.from($('single-keys').selectedOptions,o=>o.value),keys=listed.length?listed:[...selectedIds];
- if(kind!=='read'&&!keys.length){$('single-status').textContent='Select one or more keys on the keyboard to change their Single Light color.';return;}
+ const keys=kind==='read'||kind==='layer'?[]:resolveSingleKeys();
+ if(kind!=='read'&&kind!=='layer'&&!keys.length){$('single-status').textContent='Select one or more keys on the keyboard to change their Single Light color.';return;}
  const request=(kind==='keys'||kind==='color')?{keys,color:$('single-color').value}:kind==='enabled'?{keys,enabled:$('single-enabled').checked}:kind==='disable'?{keys,enabled:false}:kind==='layer'?{active:$('single-active').checked}:{keys,brightness:singleBrightnessRaw};
  setBusy(true);
- try{if(kind!=='read'){const reply=await window.keyboard.setSingleLight(request);if(!reply.ok)throw Error(reply.error);}await readSingleLight();if(kind!=='read')$('single-status').textContent=kind==='color'?'Color applied; the selected keys and the Single Light layer are on. Saved to device memory automatically.':kind==='disable'?'Single Light turned off for the selected keys. Saved to device memory automatically.':'Single Light applied; device readback verified. Saved to device memory automatically.';}
+ try{if(kind!=='read'){const reply=await window.keyboard.setSingleLight(request);if(!reply.ok)throw Error(reply.error);}lastSingleKeys=keys.slice();await readSingleLight();
+  if(kind!=='read'){
+   // The values are on the device now; drop the selection so the next pick starts clean.
+   selectedIds=new Set();selectedId='';refreshSelection();
+   const select=$('single-keys');for(const option of select.options)option.selected=false;select.dispatchEvent(new Event('change'));
+   $('single-status').textContent=kind==='color'?`Color ${$('single-color').value.toUpperCase()} applied to ${lastSingleKeys.length} key(s); the Single Light layer is on.`:kind==='disable'?`Single Light turned off for ${lastSingleKeys.length} key(s).`:`Single Light applied to ${lastSingleKeys.length} key(s); device readback verified.`;
+  }}
  catch(error){const applied=appliedWithoutSave(error);if(!applied)singleReady=false;if(applied){try{await readSingleLight();}catch{}}$('single-status').textContent=error.message;}finally{setBusy(false);}
 }
 $('single-keys').onchange=()=>showSingleSelection(true);$('single-read').onclick=()=>singleAction('read');$('single-apply').onclick=()=>singleAction('color');$('single-disable').onclick=()=>singleAction('disable');$('single-active-apply').onclick=()=>singleAction('layer');
@@ -114,10 +123,12 @@ function discardLightingDraft(){
 function updateLightingControls(){
  const backPowerReady=lightingModeReady&&lightingState?.canEditEnabled;
  $('backlight-enabled').disabled=busy||!backPowerReady;$('backlight-enabled-apply').disabled=busy||!backPowerReady;
- const listed=Array.from($('single-keys').selectedOptions,o=>o.value),singleIds=listed.length?listed:[...selectedIds],editable=singleReady&&singleIds.length>0&&singleIds.every(id=>singleState.keys.find(k=>k.id===id)?.canEdit);
+ const listed=Array.from($('single-keys').selectedOptions,o=>o.value),singleIds=listed.length?listed:(selectedIds.size?[...selectedIds]:lastSingleKeys);
+ // The controls stay available while the device is connected; an action without
+ // keys explains itself in the status line instead of locking up silently.
  $('single-keys').disabled=busy||!singleReady;
- for(const id of ['single-apply','single-disable','single-enabled','single-color','single-brightness','single-brightness-apply'])$(id).disabled=busy||!editable;
- $('single-color').title=singleReady?(singleIds.length?'Applies to the selected keys.':'Select keys on the keyboard first.'):'Connect the keyboard first.';
+ for(const id of ['single-apply','single-disable','single-enabled','single-color','single-brightness','single-brightness-apply'])$(id).disabled=busy||!singleReady;
+ $('single-color').title=singleReady?(singleIds.length?`Applies to ${singleIds.length} selected key(s).`:'Applies to the keys from the previous apply.'):'Connect the keyboard first.';
  for(const id of ['single-active','single-active-apply'])$(id).disabled=busy||!singleReady||!singleState?.canEnable;
  const syncReady=underLightReady&&underLightState?.canEditSync;
  $('underlight-sync').disabled=busy||!syncReady;$('underlight-sync-apply').disabled=busy||!syncReady;
