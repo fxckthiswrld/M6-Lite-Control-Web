@@ -84,6 +84,7 @@ async function readSingleLight(){
 async function singleAction(kind){
  if(busy||(kind!=='read'&&!singleReady))return;
  const listed=Array.from($('single-keys').selectedOptions,o=>o.value),keys=listed.length?listed:[...selectedIds];
+ if(kind!=='read'&&!keys.length){$('single-status').textContent='Select one or more keys on the keyboard to change their Single Light color.';return;}
  const request=(kind==='keys'||kind==='color')?{keys,color:$('single-color').value}:kind==='enabled'?{keys,enabled:$('single-enabled').checked}:kind==='disable'?{keys,enabled:false}:kind==='layer'?{active:$('single-active').checked}:{keys,brightness:singleBrightnessRaw};
  setBusy(true);
  try{if(kind!=='read'){const reply=await window.keyboard.setSingleLight(request);if(!reply.ok)throw Error(reply.error);}await readSingleLight();if(kind!=='read')$('single-status').textContent=kind==='color'?'Color applied; the selected keys and the Single Light layer are on. Saved to device memory automatically.':kind==='disable'?'Single Light turned off for the selected keys. Saved to device memory automatically.':'Single Light applied; device readback verified. Saved to device memory automatically.';}
@@ -113,9 +114,10 @@ function discardLightingDraft(){
 function updateLightingControls(){
  const backPowerReady=lightingModeReady&&lightingState?.canEditEnabled;
  $('backlight-enabled').disabled=busy||!backPowerReady;$('backlight-enabled-apply').disabled=busy||!backPowerReady;
- const singleIds=Array.from($('single-keys').selectedOptions,o=>o.value),editable=singleReady&&singleIds.length>0&&singleIds.every(id=>singleState.keys.find(k=>k.id===id)?.canEdit);
+ const listed=Array.from($('single-keys').selectedOptions,o=>o.value),singleIds=listed.length?listed:[...selectedIds],editable=singleReady&&singleIds.length>0&&singleIds.every(id=>singleState.keys.find(k=>k.id===id)?.canEdit);
  $('single-keys').disabled=busy||!singleReady;
  for(const id of ['single-apply','single-disable','single-enabled','single-color','single-brightness','single-brightness-apply'])$(id).disabled=busy||!editable;
+ $('single-color').title=singleReady?(singleIds.length?'Applies to the selected keys.':'Select keys on the keyboard first.'):'Connect the keyboard first.';
  for(const id of ['single-active','single-active-apply'])$(id).disabled=busy||!singleReady||!singleState?.canEnable;
  const syncReady=underLightReady&&underLightState?.canEditSync;
  $('underlight-sync').disabled=busy||!syncReady;$('underlight-sync-apply').disabled=busy||!syncReady;

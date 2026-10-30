@@ -321,8 +321,12 @@ $('keyboard').addEventListener('click',event=>{
   syncProgrammingSelection();
  }
  if(uiPage==='lighting'){
+ // The renderer owns the keyboard selection; mirroring it here keeps the
+ // hidden Single Light list in step. Toggling here would undo the selection
+ // the renderer's own click handler just applied and leave the colour picker
+ // disabled.
  const select=$('single-keys');
- for(const option of select.options)if(option.value===key.dataset.id)option.selected=!option.selected;
+ for(const option of select.options)option.selected=selectedIds.has(option.value);
  select.dispatchEvent(new Event('change'));
  syncSingleKeyHighlights();
  }
