@@ -70,3 +70,7 @@ Changes to `web/*.js` need no build step — files are served from disk, just re
 ## Related
 
 Desktop (Electron) version and shared protocol notes: [M6-Lite-Control](https://github.com/fxckthiswrld/M6-Lite-Control).
+
+## License
+
+AGPLv3 — see [LICENSE](LICENSE).
