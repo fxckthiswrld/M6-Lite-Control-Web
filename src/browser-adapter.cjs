@@ -115,9 +115,52 @@ class BrowserAdapter {
     }catch(error){error.applied=applied;throw error;}
     finally{stream.close();}
   }
-  async heWrite(request,all=false){const layer=request.layer??this.layer;return this.withHeLayer(layer,async()=>{const sections=await this.prepareDeviceMemorySave(),before=parseHeProfile(sections.get(25+layer)),selected=all?before.keys:before.keys.filter(key=>(request.ids||[request.id]).includes(`${key.row}:${key.col}`)),raw=Buffer.from(sections.get(25+layer)),stream=this.device.openReportStream();let persistence;try{for(const key of selected){const next={...key,...request,row:key.row,col:key.col,rtOn:Number(request.rtOn)},encoded={...next,...Object.fromEntries(fields.map(field=>[field,Math.round(next[field]*500)]))};await this.device.send(encodeHeWrite(encoded,layer));const offset=(key.row*14+key.col)*14;raw[offset]=Number(next.rtOn);fields.forEach((field,index)=>raw.writeUInt16LE(encoded[field],offset+2+index*2));}sections.set(25+layer,raw);persistence=await this.savePreparedDeviceMemory(sections,stream);}finally{stream.close();}const profile=await this.readProfile(layer);return {...profile,persistence};});}
+  async heWrite(request){const layer=request.layer??this.layer;return this.withHeLayer(layer,async()=>{const sections=await this.prepareDeviceMemorySave(),before=parseHeProfile(sections.get(25+layer)),selected=before.keys.filter(key=>(request.ids||[request.id]).includes(`${key.row}:${key.col}`)),raw=Buffer.from(sections.get(25+layer)),stream=this.device.openReportStream();let persistence;try{for(const key of selected){const next={...key,...request,row:key.row,col:key.col,rtOn:Number(request.rtOn)},encoded={...next,...Object.fromEntries(fields.map(field=>[field,Math.round(next[field]*500)]))};await this.device.send(encodeHeWrite(encoded,layer));const offset=(key.row*14+key.col)*14;raw[offset]=Number(next.rtOn);fields.forEach((field,index)=>raw.writeUInt16LE(encoded[field],offset+2+index*2));}sections.set(25+layer,raw);persistence=await this.savePreparedDeviceMemory(sections,stream);}finally{stream.close();}const profile=await this.readProfile(layer);return {...profile,persistence};});}
   async saveSelected(request){const profile=await this.heWrite(request,false);return {...profile,key:profile.keys.find(k=>`${k.row}:${k.col}`===request.id),verified:true};}
-  async applyAll(request){return this.heWrite(request,true);}
+  async applyAll(request){
+    const layer=request.layer??this.layer;
+    const physical=layout.find(k=>k.id===request.id);
+    if(!physical)throw Error('Select a key from the verified keyboard layout');
+    const travel=value=>{if(!Number.isFinite(value)||value<0||value>3.3)throw Error('Travel must be between 0 and 3.3 mm');const raw=value*500;if(Math.abs(raw-Math.round(raw))>1e-7)throw Error('Travel must use 0.002 mm increments');return Math.round(raw);};
+    const original=Buffer.from((await this.device.readInit(1)).subarray(0,14));
+    if(original.length<14)throw Error('Incomplete device settings');
+    if(original[11]!==layer){
+      const selected=Buffer.from(original);selected[11]=layer;
+      await this.writeDeviceConfig(selected);
+    }
+    const before=parseHeProfile(await this.device.readInit(25+layer));
+    const desired={...before.keys[physical.row*14+physical.col]};
+    for(const field of fields)desired[field]=travel(request[field]);
+    if(typeof request.rtOn!=='boolean')throw Error('Rapid Trigger must be enabled or disabled');
+    desired.rtOn=Number(request.rtOn);
+    // APPLY_TO_ALL copies the record to every switch, commits it and reboots
+    // the keyboard (verified on hardware 2026-11-08: the configuration
+    // interface re-enumerates within ~250ms and a second reinitialization
+    // drops the bus again ~2s later). The firmware answers nothing once the
+    // command lands, so no CRC/SAVE_END exchange runs here; verification
+    // happens on the reconnected device after the settle delay.
+    await this.device.send(encodeHeWrite(desired,layer,7));
+    let after=null,lastError=null;
+    for(let attempt=0;attempt<3&&!after;attempt++){
+      try{
+        await this.device.reconnect({timeout:20000});
+        await new Promise(resolve=>setTimeout(resolve,1500));
+        after=parseHeProfile(await this.device.readInit(25+layer));
+      }catch(error){lastError=error;}
+    }
+    if(!after)throw Error(`Apply to all readback failed after reconnection: ${lastError?.message||'unknown error'}.`);
+    if(!after.keys.every(key=>['rtOn',...fields].every(f=>key[f]===desired[f])))throw Error('Bulk write did not verify. Refresh the keyboard and try again.');
+    this.layer=layer;
+    try{
+      const settled=Buffer.from((await this.device.readInit(1)).subarray(0,14));
+      if(settled.length>=14&&settled[11]!==original[11]){
+        const restore=Buffer.from(settled);restore[11]=original[11];
+        await this.writeDeviceConfig(restore);
+      }
+    }catch{/* verification already succeeded; the second reinitialization may hold the bus */}
+    return {layer,keys:after.keys.map(display),layout,verified:true,
+      persistence:{acknowledged:true,command:'APPLY_TO_ALL',completion:'device re-initialized',persistenceVerified:true}};
+  }
   async readProgramming(layer){const raw=await this.device.readInit(layer?4:2);const parsed=prog.parseProgrammingProfile(raw);return {layer,keys:parsed.keys.map(({record,...key})=>key)};}
   async programmingWrite(layer,id,encoder){const raw=await this.device.readInit(layer?4:2),parsed=prog.parseProgrammingProfile(raw),source=parsed.keys.find(k=>`${k.row}:${k.col}`===id);if(!source)throw Error('Select a physical source key');return this.persistProgramming(layer,async()=>{await this.device.send(encoder(source,parsed));});}
   programmingKey(result,id){return result.keys.find(key=>`${key.row}:${key.col}`===id);}

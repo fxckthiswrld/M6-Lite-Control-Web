@@ -45,7 +45,8 @@ The colour you picked stays in the picker when you re-select keys; you can repea
 ## Good to know
 
 - Before changing anything the app reads the full device state and verifies every write by readback; on failure the original values are restored.
-- A `Saving to device memory did not confirm: SAVE_END` warning means the keyboard did not acknowledge the persistence write — the applied colour works until USB disconnect. This is a firmware limitation and does not affect applying colours.
+- **Apply to all** uses the vendor `APPLY_TO_ALL` command, which reboots the keyboard (verified on hardware 2026-11-08): the keyboard drops off USB and reconnects within a couple of seconds. The app waits for the reconnection, verifies every record after it, and tolerates the second reinitialization. Do not unplug the keyboard until the status line reports success.
+- A `Saving to device memory did not confirm: SAVE_END` warning means the keyboard did not acknowledge the persistence write - the applied colour works until USB disconnect. This is a firmware limitation and does not affect applying colours.
 - Close the desktop app while using the browser version: two programs talking to the keyboard at once can interfere with write acknowledgements.
 - EQ lighting is desktop-only.
 

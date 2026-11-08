@@ -1,6 +1,6 @@
 'use strict';
 // Browser transport: all device calls stay in the page and use WebHID.
-const adapterReady=import('./browser-backend.js?v=20261021-50').then(m=>new (m.BrowserAdapter||m.default.BrowserAdapter)());
+const adapterReady=import('./browser-backend.js?v=20261108-51').then(m=>new (m.BrowserAdapter||m.default.BrowserAdapter)());
 const unsupported=name=>({ok:false,error:`${name} is not available in this browser build yet.`});
 const persistentMethods=new Set(['saveSelected','applyAll','importHe','setPair','setRemap','setHotKey','setMedia','setModify','setLayerAssignment','resetProgrammingKey','resetAllProgramming','setKeyEnabled','setDks','setDksAll','setDksWasd','presetOff','quickPreset','returnToStandard','setBackLightMode','setBackLightEnabled','setBackLightColor','setBackLightSpeed','setBackLightDirection','setBrightness','setUnderLightMode','setUnderLightEnabled','setUnderLightSync','setUnderLightBrightness','setUnderLightColor','setUnderLightSpeed','setSingleLight']);
 const crcSaveMethods=new Set(['importHe','returnToStandard']);

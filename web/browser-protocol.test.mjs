@@ -569,3 +569,52 @@ test('persistent lighting calls save with a report stream opened before the writ
   assert.equal(sent.length, 4);
   assert.equal(sent[0][1], 11);
 });
+test('apply to all sends APPLY_TO_ALL once, survives the reboot and verifies after reconnect', async () => {
+  const memory = new Map([
+    [1, Buffer.alloc(984)],
+    [25, Buffer.alloc(984)],
+    [26, Buffer.alloc(984)],
+  ]);
+  memory.get(1)[11] = 0;
+  // Seed ten RT keys so the apply must overwrite mixed mechanical/RT records.
+  for (const index of [3, 15, 29, 30, 31, 44, 45, 58, 59, 69]) memory.get(25)[index * 14] = 1;
+  const writes = [];
+  const fake = {
+    async readInit(kind) { return Buffer.from(memory.get(kind)); },
+    async send(payload) {
+      const p = Buffer.from(payload);
+      if (p[1] === 0x31 && p[2] === 7) {
+        writes.push(p);
+        const raw = memory.get(25);
+        for (let i = 0; i < 70; i++) { raw[i * 14] = p[6]; p.copy(raw, i * 14 + 2, 7, 19); }
+      }
+    },
+    async reconnect() { return { connected: true }; },
+  };
+  const adapter = new BrowserAdapter();
+  adapter.device = fake;
+  const request = { id: '2:1', layer: 0, rtOn: true, head: 0.2, bottom: 0.2, trigger: 0.2, release: 0.2, fixedDown: 1, fixedUp: 1 };
+  const result = await adapter.applyAll(request);
+  assert.equal(writes.length, 1);
+  assert.equal(writes[0][2], 7);
+  assert.equal(result.verified, true);
+  assert.equal(result.persistence.command, 'APPLY_TO_ALL');
+  assert.equal(result.persistence.completion, 'device re-initialized');
+  assert.equal(result.keys.length, 70);
+  assert.equal(result.keys.every(key => key.rtOn === true), true);
+  assert.equal(result.keys.every(key => key.trigger === 0.2), true);
+});
+
+test('apply to all rejects unknown keys and non-boolean RT before touching the device', async () => {
+  const sent = [];
+  const fake = {
+    async readInit(kind) { return Buffer.alloc(984); },
+    async send(payload) { sent.push(Buffer.from(payload)); },
+    async reconnect() { return {}; },
+  };
+  const adapter = new BrowserAdapter();
+  adapter.device = fake;
+  await assert.rejects(() => adapter.applyAll({ id: '9:9', layer: 0, rtOn: true }), /Select a key from the verified keyboard layout/);
+  await assert.rejects(() => adapter.applyAll({ id: '2:1', layer: 0, rtOn: 'yes', head: 0.2, bottom: 0.2, trigger: 0.2, release: 0.2, fixedDown: 1, fixedUp: 1 }), /Rapid Trigger must be enabled or disabled/);
+  assert.equal(sent.length, 0);
+});
