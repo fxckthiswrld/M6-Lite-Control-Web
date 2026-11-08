@@ -115,7 +115,45 @@ class BrowserAdapter {
     }catch(error){error.applied=applied;throw error;}
     finally{stream.close();}
   }
-  async heWrite(request){const layer=request.layer??this.layer;return this.withHeLayer(layer,async()=>{const sections=await this.prepareDeviceMemorySave(),before=parseHeProfile(sections.get(25+layer)),selected=before.keys.filter(key=>(request.ids||[request.id]).includes(`${key.row}:${key.col}`)),raw=Buffer.from(sections.get(25+layer)),stream=this.device.openReportStream();let persistence;try{for(const key of selected){const next={...key,...request,row:key.row,col:key.col,rtOn:Number(request.rtOn)},encoded={...next,...Object.fromEntries(fields.map(field=>[field,Math.round(next[field]*500)]))};await this.device.send(encodeHeWrite(encoded,layer));const offset=(key.row*14+key.col)*14;raw[offset]=Number(next.rtOn);fields.forEach((field,index)=>raw.writeUInt16LE(encoded[field],offset+2+index*2));}sections.set(25+layer,raw);persistence=await this.savePreparedDeviceMemory(sections,stream);}finally{stream.close();}const profile=await this.readProfile(layer);return {...profile,persistence};});}
+  async heWrite(request){const layer=request.layer??this.layer;return this.withHeLayer(layer,async()=>{const sections=await this.prepareDeviceMemorySave(),before=parseHeProfile(sections.get(25+layer)),selected=before.keys.filter(key=>(request.ids||[request.id]).includes(`${key.row}:${key.col}`)),stream=this.device.openReportStream();
+   // The keyboard drops per-key records that arrive back-to-back: without
+   // pacing only a few of 64 writes are applied (verified on hardware
+   // 2026-11-08). Write batches of four with 15ms gaps, commit each batch to
+   // device memory and verify it by readback, restoring the original records
+   // when any batch fails. This mirrors the desktop group write.
+   const expected=before.keys.map(key=>({...key}));
+   for(const key of selected)Object.assign(expected[key.row*14+key.col],{rtOn:Number(request.rtOn),...Object.fromEntries(fields.map(field=>[field,Math.round(request[field]*500)]))});
+   const compare=(record,other)=>['rtOn',...fields].every(field=>record[field]===other[field]);
+   const changes=expected.filter((key,i)=>!compare(key,before.keys[i]));
+   const raw=Buffer.from(sections.get(25+layer));
+   const commit=batch=>{for(const key of batch){const offset=(key.row*14+key.col)*14;raw[offset]=key.rtOn;fields.forEach((field,index)=>raw.writeUInt16LE(key[field],offset+2+index*2));}sections.set(25+layer,raw);};
+   let persistence;
+   const writeBatch=async batch=>{
+    for(const key of batch){await this.device.send(encodeHeWrite(key,layer));await new Promise(resolve=>setTimeout(resolve,15));}
+    commit(batch);
+    persistence=await this.savePreparedDeviceMemory(sections,stream);
+    const observed=parseHeProfile(await this.device.readInit(25+layer));
+    if(batch.some(key=>!compare(key,observed.keys[key.row*14+key.col])))throw Error('HE batch readback mismatch');
+   };
+   try{
+    for(let start=0;start<changes.length;start+=4)await writeBatch(changes.slice(start,start+4));
+    const after=parseHeProfile(await this.device.readInit(25+layer));
+    if(changes.some(key=>!compare(key,after.keys[key.row*14+key.col])))throw Error('HE profile readback mismatch');
+   }catch(error){
+    let restored=true;
+    try{
+     for(const key of changes.map(key=>before.keys[key.row*14+key.col])){await this.device.send(encodeHeWrite(key,layer));await new Promise(resolve=>setTimeout(resolve,15));}
+     commit(changes.map(key=>before.keys[key.row*14+key.col]));
+     await this.savePreparedDeviceMemory(sections,stream);
+     const observed=parseHeProfile(await this.device.readInit(25+layer));
+     if(changes.some(key=>!compare(before.keys[key.row*14+key.col],observed.keys[key.row*14+key.col])))restored=false;
+    }catch{restored=false;}
+    if(!restored)throw Error(`${error.message}. Restoration could not be verified. Refresh and retry. Backup: browser-session`);
+    throw Error(`${error.message}. Original HE profile restored. Backup: browser-session`);
+   }finally{stream.close();}
+   const profile=await this.readProfile(layer);
+   return {...profile,persistence};
+  });}
   async saveSelected(request){const profile=await this.heWrite(request,false);return {...profile,key:profile.keys.find(k=>`${k.row}:${k.col}`===request.id),verified:true};}
   async applyAll(request){
     const layer=request.layer??this.layer;
